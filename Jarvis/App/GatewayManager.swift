@@ -50,7 +50,8 @@ class GatewayManager: ObservableObject {
             if (try? await GatewayClient.shared.health()) == true {
                 isReady = true
                 isStarting = false
-                await onReady()
+                // Python auto-restored config from disk; just sync display state
+                await APIConfigStore.shared.loadFromGateway()
                 startHealthMonitor()
                 return
             }
@@ -58,27 +59,6 @@ class GatewayManager: ObservableObject {
         }
         print("[GatewayManager] Gateway did not start in time")
         isStarting = false
-    }
-
-    private func onReady() async {
-        let store = APIConfigStore.shared
-        store.load()
-        guard let pid = store.activeProviderId,
-              let mid = store.activeModelId else { return }
-
-        let apiKey = store.loadAPIKey(for: pid) ?? ""
-        let baseUrl = store.configurations[pid]?.baseUrl
-        let req = SettingsRequest(
-            providerId: pid,
-            modelId: mid,
-            apiKey: apiKey,
-            baseUrl: baseUrl,
-            awsAccessKey: nil,
-            awsSecretKey: nil,
-            region: nil
-        )
-        try? await GatewayClient.shared.updateSettings(req)
-        print("[GatewayManager] Provider restored: \(pid)/\(mid)")
     }
 
     private func startHealthMonitor() {
@@ -109,8 +89,6 @@ class GatewayManager: ObservableObject {
         isReady = false
     }
 
-    // MARK: - Path helpers
-
     private func findPython() -> String {
         let candidates = [
             "/opt/homebrew/bin/python3",
@@ -121,23 +99,15 @@ class GatewayManager: ObservableObject {
     }
 
     private func gatewayScriptPath() -> String {
-        // During development: sibling Python/ directory relative to app bundle
-        let bundle = Bundle.main.bundlePath
         let candidates = [
-            // Xcode build: project root
-            bundle + "/../../../../Python/gateway.py",
-            // Installed alongside app
-            bundle + "/../Python/gateway.py",
-            // Resources embedded
+            Bundle.main.bundlePath + "/../../../../Python/gateway.py",
+            Bundle.main.bundlePath + "/../Python/gateway.py",
             (Bundle.main.resourcePath ?? "") + "/Python/gateway.py",
         ]
         for path in candidates {
             let resolved = URL(fileURLWithPath: path).standardized.path
-            if FileManager.default.fileExists(atPath: resolved) {
-                return resolved
-            }
+            if FileManager.default.fileExists(atPath: resolved) { return resolved }
         }
-        // Fallback: relative to CWD
         return FileManager.default.currentDirectoryPath + "/Python/gateway.py"
     }
 }

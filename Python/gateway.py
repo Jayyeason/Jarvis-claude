@@ -1,15 +1,14 @@
 import sys
 import os
-import asyncio
+import json
+from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
 
-import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Add project root to path so sub-modules can import each other
 sys.path.insert(0, os.path.dirname(__file__))
 
 from providers.provider_factory import create_provider
@@ -17,11 +16,30 @@ from providers.provider_configs import PROVIDER_CONFIGS
 from agent.jarvis_agent import JarvisAgent
 
 
-# ── Pydantic models ──────────────────────────────────────────────────────────
+# ── Config persistence ────────────────────────────────────────────────────────
+
+CONFIG_PATH = Path.home() / ".jarvis" / "api_config.json"
+
+
+def load_config() -> dict:
+    if CONFIG_PATH.exists():
+        try:
+            return json.loads(CONFIG_PATH.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def save_config(data: dict):
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+# ── Pydantic models ───────────────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
     message: str = ""
-    image: Optional[str] = None  # base64 JPEG
+    image: Optional[str] = None
     session_id: Optional[str] = None
 
 
@@ -68,6 +86,29 @@ async def lifespan(app: FastAPI):
     app.state.active_provider_id = None
     app.state.active_model_id = None
     app.state.agent = JarvisAgent()
+
+    # Auto-restore last active provider from disk
+    cfg = load_config()
+    pid = cfg.get("active_provider_id")
+    mid = cfg.get("active_model_id")
+    if pid and mid:
+        pcfg = cfg.get("providers", {}).get(pid, {})
+        try:
+            provider = create_provider(pid, {
+                "api_key":        pcfg.get("api_key", ""),
+                "model":          mid,
+                "base_url":       pcfg.get("base_url"),
+                "aws_access_key": pcfg.get("aws_access_key"),
+                "aws_secret_key": pcfg.get("aws_secret_key"),
+                "region":         pcfg.get("region"),
+            })
+            app.state.active_provider    = provider
+            app.state.active_provider_id = pid
+            app.state.active_model_id    = mid
+            print(f"[Gateway] Restored provider: {pid}/{mid}")
+        except Exception as e:
+            print(f"[Gateway] Could not restore provider: {e}")
+
     yield
 
 
@@ -92,26 +133,58 @@ async def health():
     }
 
 
+@app.get("/config")
+async def get_config():
+    """Return current config (no API keys exposed)."""
+    cfg = load_config()
+    providers_display = {}
+    for pid, pcfg in cfg.get("providers", {}).items():
+        providers_display[pid] = {
+            "model_id":   pcfg.get("model_id"),
+            "base_url":   pcfg.get("base_url"),
+            "configured": pcfg.get("configured", False),
+        }
+    return {
+        "active_provider_id": cfg.get("active_provider_id"),
+        "active_model_id":    cfg.get("active_model_id"),
+        "providers":          providers_display,
+    }
+
+
 @app.post("/settings")
 async def update_settings(req: SettingsRequest):
+    """Save provider config to disk and activate it."""
     try:
-        config = {
-            "api_key": req.api_key,
-            "model": req.model_id,
-            "base_url": req.base_url,
+        provider_cfg = {
+            "api_key":        req.api_key,
+            "model":          req.model_id,
+            "base_url":       req.base_url,
+            "aws_access_key": req.aws_access_key,
+            "aws_secret_key": req.aws_secret_key,
+            "region":         req.region,
         }
-        if req.aws_access_key:
-            config["aws_access_key"] = req.aws_access_key
-            config["aws_secret_key"] = req.aws_secret_key
-            config["region"] = req.region or "us-east-1"
+        provider = create_provider(req.provider_id, provider_cfg)
 
-        provider = create_provider(
-            provider_id=req.provider_id,
-            config=config,
-        )
-        app.state.active_provider = provider
+        app.state.active_provider    = provider
         app.state.active_provider_id = req.provider_id
-        app.state.active_model_id = req.model_id
+        app.state.active_model_id    = req.model_id
+
+        # Persist to disk
+        cfg = load_config()
+        cfg["active_provider_id"] = req.provider_id
+        cfg["active_model_id"]    = req.model_id
+        providers = cfg.get("providers", {})
+        providers[req.provider_id] = {
+            "api_key":        req.api_key,
+            "model_id":       req.model_id,
+            "base_url":       req.base_url,
+            "aws_access_key": req.aws_access_key,
+            "aws_secret_key": req.aws_secret_key,
+            "region":         req.region,
+            "configured":     True,
+        }
+        cfg["providers"] = providers
+        save_config(cfg)
 
         return {"status": "ok", "provider": req.provider_id, "model": req.model_id}
     except Exception as e:
@@ -120,17 +193,16 @@ async def update_settings(req: SettingsRequest):
 
 @app.post("/verify")
 async def verify_provider(req: VerifyRequest):
+    """Verify API key without saving to disk."""
     try:
         config = {
-            "api_key": req.api_key,
-            "model": req.model_id or _default_model(req.provider_id),
-            "base_url": req.base_url,
+            "api_key":        req.api_key,
+            "model":          req.model_id or _default_model(req.provider_id),
+            "base_url":       req.base_url,
+            "aws_access_key": req.aws_access_key,
+            "aws_secret_key": req.aws_secret_key,
+            "region":         req.region,
         }
-        if req.aws_access_key:
-            config["aws_access_key"] = req.aws_access_key
-            config["aws_secret_key"] = req.aws_secret_key
-            config["region"] = req.region or "us-east-1"
-
         provider = create_provider(provider_id=req.provider_id, config=config)
         models = await provider.verify()
         return {"status": "ok", "models": models}
@@ -141,10 +213,7 @@ async def verify_provider(req: VerifyRequest):
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
     if app.state.active_provider is None:
-        return ChatResponse(
-            reply="请先配置云端 API",
-            error="no_provider",
-        )
+        return ChatResponse(reply="请先配置云端 API", error="no_provider")
     try:
         result = await app.state.agent.run(
             message=req.message,
@@ -162,8 +231,6 @@ def _default_model(provider_id: str) -> str:
     models = cfg.get("preset_models", [])
     return models[0] if models else ""
 
-
-# ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import uvicorn

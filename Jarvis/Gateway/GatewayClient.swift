@@ -8,10 +8,10 @@ enum GatewayError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .settingsUpdateFailed: return "设置更新失败"
-        case .verifyFailed(let msg): return "验证失败: \(msg)"
-        case .chatFailed(let msg): return "请求失败: \(msg)"
-        case .notConfigured: return "请先配置云端 API"
+        case .settingsUpdateFailed:    return "设置更新失败"
+        case .verifyFailed(let msg):   return "验证失败: \(msg)"
+        case .chatFailed(let msg):     return "请求失败: \(msg)"
+        case .notConfigured:           return "请先配置云端 API"
         }
     }
 }
@@ -26,10 +26,10 @@ struct VerifyRequest: Codable {
     let region: String?
 
     enum CodingKeys: String, CodingKey {
-        case providerId = "provider_id"
-        case apiKey = "api_key"
-        case baseUrl = "base_url"
-        case modelId = "model_id"
+        case providerId  = "provider_id"
+        case apiKey      = "api_key"
+        case baseUrl     = "base_url"
+        case modelId     = "model_id"
         case awsAccessKey = "aws_access_key"
         case awsSecretKey = "aws_secret_key"
         case region
@@ -40,6 +40,18 @@ struct VerifyResponse: Codable {
     let status: String
     let models: [String]?
     let detail: String?
+}
+
+struct GatewayConfig: Codable {
+    let activeProviderId: String?
+    let activeModelId: String?
+    let providers: [String: ProviderConfig]?
+
+    enum CodingKeys: String, CodingKey {
+        case activeProviderId = "active_provider_id"
+        case activeModelId    = "active_model_id"
+        case providers
+    }
 }
 
 actor GatewayClient {
@@ -57,7 +69,6 @@ actor GatewayClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(req)
         request.timeoutInterval = 10
-
         let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw GatewayError.settingsUpdateFailed
@@ -71,14 +82,18 @@ actor GatewayClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(req)
         request.timeoutInterval = 15
-
         let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             let detail = (try? decoder.decode(VerifyResponse.self, from: data))?.detail ?? "未知错误"
             throw GatewayError.verifyFailed(detail)
         }
-        let vr = try decoder.decode(VerifyResponse.self, from: data)
-        return vr.models ?? []
+        return (try decoder.decode(VerifyResponse.self, from: data)).models ?? []
+    }
+
+    func getConfig() async throws -> GatewayConfig {
+        let url = baseURL.appendingPathComponent("config")
+        let (data, _) = try await session.data(from: url)
+        return try decoder.decode(GatewayConfig.self, from: data)
     }
 
     func chat(_ req: ChatRequest) async throws -> ChatResponse {
@@ -88,7 +103,6 @@ actor GatewayClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(req)
         request.timeoutInterval = 60
-
         let (data, _) = try await session.data(for: request)
         return try decoder.decode(ChatResponse.self, from: data)
     }
@@ -97,7 +111,6 @@ actor GatewayClient {
         let url = baseURL.appendingPathComponent("health")
         let request = URLRequest(url: url, timeoutInterval: 5)
         let (_, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { return false }
-        return http.statusCode == 200
+        return (response as? HTTPURLResponse)?.statusCode == 200
     }
 }

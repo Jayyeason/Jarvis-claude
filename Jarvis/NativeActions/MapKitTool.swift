@@ -13,7 +13,7 @@ class MapKitTool {
             let userLocation = CLLocation(latitude: 39.9042, longitude: 116.4074) // Beijing fallback
             return response.mapItems.prefix(5).map { item in
                 let itemLocation = item.placemark.location
-                LocationResult(
+                return LocationResult(
                     name: item.name ?? keyword,
                     address: item.placemark.formattedAddress,
                     latitude: item.placemark.coordinate.latitude,

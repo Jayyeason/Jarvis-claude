@@ -7,11 +7,6 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
-packages:
-  KeyboardShortcuts:
-    url: https://github.com/nicklockwood/SwiftyJSON
-    from: "5.0.0"
-
 targets:
   Jarvis:
     type: application
@@ -25,20 +20,26 @@ targets:
       - path: NativeActions
       - path: Store
       - path: Models
-    resources:
-      - path: Resources/Info.plist
-        buildPhase: none
-      - path: Resources/Jarvis.entitlements
-        buildPhase: none
     info:
       path: Resources/Info.plist
+      properties:
+        LSUIElement: true
+        LSMinimumSystemVersion: "14.0"
+        NSCalendarsUsageDescription: "Jarvis 需要访问日历来添加识别到的日程。"
+        NSRemindersUsageDescription: "Jarvis 需要访问提醒事项来添加识别到的任务。"
+        NSScreenCaptureUsageDescription: "Jarvis 需要截图权限来识别屏幕内容。"
+        NSLocationWhenInUseUsageDescription: "Jarvis 使用位置来搜索附近地点。"
+        NSHumanReadableCopyright: "Copyright © 2026 Jarvis. All rights reserved."
     entitlements:
       path: Resources/Jarvis.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.network.client: true
+        com.apple.security.personal-information.calendars: true
+        com.apple.security.personal-information.reminders: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jarvis.app
-        INFOPLIST_FILE: Jarvis/Resources/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Jarvis/Resources/Jarvis.entitlements
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         CODE_SIGN_IDENTITY: "-"

@@ -1,34 +1,34 @@
 import Foundation
 import Combine
 
-struct APIConfig: Codable {
-    var activeProviderId: String?
-    var activeModelId: String?
-    var providers: [String: ProviderConfig]
-}
-
 struct ProviderConfig: Codable {
-    var modelId: String
+    var modelId: String?
     var baseUrl: String?
     var configured: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case modelId = "model_id"
+        case baseUrl = "base_url"
+        case configured
+    }
 }
 
 let PROVIDER_DISPLAY_NAMES: [String: String] = [
-    "openai": "OpenAI",
-    "anthropic": "Anthropic",
-    "google": "Google Gemini",
-    "deepseek": "DeepSeek",
-    "openrouter": "OpenRouter",
-    "moonshot": "Moonshot",
-    "minimax": "MiniMax",
-    "glm": "GLM（智谱）",
-    "zai": "Z.AI",
-    "bedrock": "Amazon Bedrock",
-    "vercel": "Vercel AI Gateway",
-    "synthetic": "Synthetic",
+    "openai":       "OpenAI",
+    "anthropic":    "Anthropic",
+    "google":       "Google Gemini",
+    "deepseek":     "DeepSeek",
+    "openrouter":   "OpenRouter",
+    "moonshot":     "Moonshot",
+    "minimax":      "MiniMax",
+    "glm":          "GLM（智谱）",
+    "zai":          "Z.AI",
+    "bedrock":      "Amazon Bedrock",
+    "vercel":       "Vercel AI Gateway",
+    "synthetic":    "Synthetic",
     "opencode_zen": "OpenCode Zen",
-    "ollama": "Ollama",
-    "custom": "自定义端点"
+    "ollama":       "Ollama",
+    "custom":       "自定义端点",
 ]
 
 @MainActor
@@ -47,72 +47,38 @@ class APIConfigStore: ObservableObject {
         return "\(name) / \(mid)"
     }
 
-    private let configURL: URL = {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".jarvis")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("api_config.json")
-    }()
-
-    private let decoder = JSONDecoder()
-    private let encoder: JSONEncoder = {
-        let e = JSONEncoder()
-        e.outputFormatting = .prettyPrinted
-        return e
-    }()
-
-    func load() {
-        guard let data = try? Data(contentsOf: configURL),
-              let config = try? decoder.decode(APIConfig.self, from: data) else { return }
-        activeProviderId = config.activeProviderId
-        activeModelId = config.activeModelId
-        configurations = config.providers
+    /// Pull current state from Python (no API keys returned).
+    func loadFromGateway() async {
+        guard let cfg = try? await GatewayClient.shared.getConfig() else { return }
+        activeProviderId = cfg.activeProviderId
+        activeModelId    = cfg.activeModelId
+        configurations   = cfg.providers ?? [:]
     }
 
-    func save() {
-        let config = APIConfig(
-            activeProviderId: activeProviderId,
-            activeModelId: activeModelId,
-            providers: configurations
-        )
-        if let data = try? encoder.encode(config) {
-            try? data.write(to: configURL)
-        }
-    }
-
-    func saveAPIKey(_ key: String, for providerId: String) {
-        KeychainHelper.save(key, for: "jarvis.api_key.\(providerId)")
-    }
-
-    func loadAPIKey(for providerId: String) -> String? {
-        KeychainHelper.load("jarvis.api_key.\(providerId)")
-    }
-
-    func deleteAPIKey(for providerId: String) {
-        KeychainHelper.delete("jarvis.api_key.\(providerId)")
-    }
-
-    func activate(providerId: String, modelId: String, baseUrl: String? = nil) async throws {
-        activeProviderId = providerId
-        activeModelId = modelId
-        if configurations[providerId] == nil {
-            configurations[providerId] = ProviderConfig(modelId: modelId, configured: true)
-        } else {
-            configurations[providerId]?.modelId = modelId
-            configurations[providerId]?.configured = true
-        }
-        save()
-
-        let apiKey = loadAPIKey(for: providerId) ?? ""
+    /// Send settings to Python (Python saves to ~/.jarvis/api_config.json).
+    func activate(
+        providerId: String,
+        modelId: String,
+        apiKey: String = "",
+        baseUrl: String? = nil,
+        awsAccessKey: String? = nil,
+        awsSecretKey: String? = nil,
+        region: String? = nil
+    ) async throws {
         let req = SettingsRequest(
-            providerId: providerId,
-            modelId: modelId,
-            apiKey: apiKey,
-            baseUrl: baseUrl ?? configurations[providerId]?.baseUrl,
-            awsAccessKey: nil,
-            awsSecretKey: nil,
-            region: nil
+            providerId:   providerId,
+            modelId:      modelId,
+            apiKey:       apiKey,
+            baseUrl:      baseUrl,
+            awsAccessKey: awsAccessKey,
+            awsSecretKey: awsSecretKey,
+            region:       region
         )
         try await GatewayClient.shared.updateSettings(req)
+        activeProviderId = providerId
+        activeModelId    = modelId
+        configurations[providerId] = ProviderConfig(
+            modelId: modelId, baseUrl: baseUrl, configured: true
+        )
     }
 }

@@ -82,7 +82,7 @@ class StatusBarController: NSObject {
         statusItem.length = 380
     }
 
-    override func mouseEntered(with event: NSEvent) {
+    func mouseEntered(with event: NSEvent) {
         guard !isExpanded else { return }
         isExpanded = true
         if let button = statusItem.button {
@@ -92,7 +92,7 @@ class StatusBarController: NSObject {
         }
     }
 
-    override func mouseExited(with event: NSEvent) {
+    func mouseExited(with event: NSEvent) {
         guard isExpanded else { return }
         isExpanded = false
         if let button = statusItem.button {

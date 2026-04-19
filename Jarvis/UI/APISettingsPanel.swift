@@ -242,7 +242,7 @@ private struct ProviderConfigForm: View {
     }
 
     private func loadSavedValues() {
-        apiKey = configStore.loadAPIKey(for: provider.id) ?? ""
+        apiKey = ""  // never pre-fill from memory (stored in Python)
         baseUrl = configStore.configurations[provider.id]?.baseUrl ?? ""
         availableModels = []
         selectedModel = configStore.configurations[provider.id]?.modelId ?? provider.presetModels.first ?? ""
@@ -252,11 +252,6 @@ private struct ProviderConfigForm: View {
     private func saveAndVerify() async {
         isVerifying = true
         verifyStatus = .idle
-
-        // Save to keychain
-        if !apiKey.isEmpty {
-            configStore.saveAPIKey(apiKey, for: provider.id)
-        }
 
         let req = VerifyRequest(
             providerId: provider.id,
@@ -282,11 +277,14 @@ private struct ProviderConfigForm: View {
     private func activateProvider() async {
         isSaving = true
         do {
-            let url = baseUrl.isEmpty ? nil : baseUrl
             try await configStore.activate(
-                providerId: provider.id,
-                modelId: selectedModel,
-                baseUrl: url
+                providerId:   provider.id,
+                modelId:      selectedModel,
+                apiKey:       apiKey,
+                baseUrl:      baseUrl.isEmpty ? nil : baseUrl,
+                awsAccessKey: awsAccessKey.isEmpty ? nil : awsAccessKey,
+                awsSecretKey: awsSecretKey.isEmpty ? nil : awsSecretKey,
+                region:       region.isEmpty ? nil : region
             )
         } catch {
             verifyStatus = .failure(error.localizedDescription)
