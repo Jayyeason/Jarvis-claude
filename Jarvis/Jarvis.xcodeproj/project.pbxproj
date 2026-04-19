@@ -1,0 +1,477 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0619C927DA8A6DEC0267A7BF /* APIConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEDD788380DF52443DF8692 /* APIConfigStore.swift */; };
+		16D83E050E127B59E28B857F /* JarvisCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */; };
+		204EA56C182EA85E5A023DAD /* ChatRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77902DA938F1B2320153714 /* ChatRequest.swift */; };
+		29FA1BA130329E4B307C37EB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB3B936D48E3F70D3296FFBA /* SwiftUI.framework */; };
+		4700108C3D2CE846ED4B5C6C /* EventKitTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC7F17CD50645E1133CA35F /* EventKitTool.swift */; };
+		526BDF4D6BC5714809B2E937 /* JarvisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */; };
+		533B9EB601D34C4B91024D14 /* ChatResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0819919350A969D6088B8B /* ChatResponse.swift */; };
+		6011C87CF9F1B27CDABD5CC7 /* SettingsRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7858BBC214977568B88A1F72 /* SettingsRequest.swift */; };
+		6628F26BDBCFA529FF7B4F47 /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E043B34A4CA125709886D005 /* EventKit.framework */; };
+		6D9B3EF2AAE5DACA36F95EED /* CaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855105F2040B098186D04239 /* CaptureManager.swift */; };
+		6E69CF154C5B6F7E783A3C42 /* ScreenCaptureKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0B4D53AD65B421DD2327AD97 /* ScreenCaptureKit.framework */; };
+		7807D0D4FF45BF8B9B6924CF /* ConfirmationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E360B321077CE88F420BBCE2 /* ConfirmationCard.swift */; };
+		8894E6E14D51982134123495 /* LocationResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04877521BE7E118FFC90684D /* LocationResult.swift */; };
+		94195FE597089F82A6453890 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC2935199B3509EDEC26553C /* Security.framework */; };
+		9B0E2914ED95DDFBC35AD735 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C6AADCC1C319F0FBE8B1CE77 /* MapKit.framework */; };
+		9C1D96254BB15E23E44A2886 /* GatewayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB995D8A4DFFC20D52722BC3 /* GatewayClient.swift */; };
+		C8394B53D9D8555F0F1E7745 /* RecognitionResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5A907E1425A49834AB790A /* RecognitionResult.swift */; };
+		C9E85AD51992D884D1C6C40A /* GatewayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC392F8BECCDFC08BF4BEDB5 /* GatewayManager.swift */; };
+		CC2360242A76906B1943FAF5 /* LocationPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */; };
+		CDCFF324A05A0F05827E0E0E /* APISettingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FCD56DF4279749289084814 /* APISettingsPanel.swift */; };
+		D216FA92EAB2E318278188A4 /* IslandPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */; };
+		D32C7BB3B3928EDEC509649E /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B11BC154BB057B81C828BBF /* KeychainHelper.swift */; };
+		DA890339691DB77FC0F90F9B /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34376B43CD025E00DF1F61B2 /* CoreLocation.framework */; };
+		DAC0A1E309C69A3B401B4AB5 /* APISettingsWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC62EAC7E7430766E5D00644 /* APISettingsWindowManager.swift */; };
+		E59F46A66B30A20BFB18F9FB /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C13014B148F85DD6898AA12D /* AppKit.framework */; };
+		E648B0463FCECB1AED274277 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3268F17FB5F3213F02C5011 /* StatusBarController.swift */; };
+		EFC129CFDAE671D78B59201B /* MapKitTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFADDFF5EF2E9C9923DB8754 /* MapKitTool.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		04877521BE7E118FFC90684D /* LocationResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationResult.swift; sourceTree = "<group>"; };
+		0B4D53AD65B421DD2327AD97 /* ScreenCaptureKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScreenCaptureKit.framework; path = System/Library/Frameworks/ScreenCaptureKit.framework; sourceTree = SDKROOT; };
+		0EC7F17CD50645E1133CA35F /* EventKitTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitTool.swift; sourceTree = "<group>"; };
+		1B11BC154BB057B81C828BBF /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPanel.swift; sourceTree = "<group>"; };
+		2EEDD788380DF52443DF8692 /* APIConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfigStore.swift; sourceTree = "<group>"; };
+		34376B43CD025E00DF1F61B2 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
+		6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPicker.swift; sourceTree = "<group>"; };
+		7858BBC214977568B88A1F72 /* SettingsRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRequest.swift; sourceTree = "<group>"; };
+		8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JarvisCommands.swift; sourceTree = "<group>"; };
+		855105F2040B098186D04239 /* CaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureManager.swift; sourceTree = "<group>"; };
+		8FCD56DF4279749289084814 /* APISettingsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsPanel.swift; sourceTree = "<group>"; };
+		90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JarvisApp.swift; sourceTree = "<group>"; };
+		A3268F17FB5F3213F02C5011 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
+		A77902DA938F1B2320153714 /* ChatRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRequest.swift; sourceTree = "<group>"; };
+		AC392F8BECCDFC08BF4BEDB5 /* GatewayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayManager.swift; sourceTree = "<group>"; };
+		BB3B936D48E3F70D3296FFBA /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		BB995D8A4DFFC20D52722BC3 /* GatewayClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayClient.swift; sourceTree = "<group>"; };
+		BC2935199B3509EDEC26553C /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		BC62EAC7E7430766E5D00644 /* APISettingsWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsWindowManager.swift; sourceTree = "<group>"; };
+		C13014B148F85DD6898AA12D /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		C6AADCC1C319F0FBE8B1CE77 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
+		CC0819919350A969D6088B8B /* ChatResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatResponse.swift; sourceTree = "<group>"; };
+		CD5A907E1425A49834AB790A /* RecognitionResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecognitionResult.swift; sourceTree = "<group>"; };
+		E043B34A4CA125709886D005 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
+		E360B321077CE88F420BBCE2 /* ConfirmationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmationCard.swift; sourceTree = "<group>"; };
+		EFADDFF5EF2E9C9923DB8754 /* MapKitTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapKitTool.swift; sourceTree = "<group>"; };
+		F2EA89B09E63D9954B6EA5A4 /* Jarvis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jarvis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		886D43D159942AB5C149B33B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E59F46A66B30A20BFB18F9FB /* AppKit.framework in Frameworks */,
+				29FA1BA130329E4B307C37EB /* SwiftUI.framework in Frameworks */,
+				6E69CF154C5B6F7E783A3C42 /* ScreenCaptureKit.framework in Frameworks */,
+				6628F26BDBCFA529FF7B4F47 /* EventKit.framework in Frameworks */,
+				9B0E2914ED95DDFBC35AD735 /* MapKit.framework in Frameworks */,
+				DA890339691DB77FC0F90F9B /* CoreLocation.framework in Frameworks */,
+				94195FE597089F82A6453890 /* Security.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0495793F0272EAE711BB741E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C13014B148F85DD6898AA12D /* AppKit.framework */,
+				34376B43CD025E00DF1F61B2 /* CoreLocation.framework */,
+				E043B34A4CA125709886D005 /* EventKit.framework */,
+				C6AADCC1C319F0FBE8B1CE77 /* MapKit.framework */,
+				0B4D53AD65B421DD2327AD97 /* ScreenCaptureKit.framework */,
+				BC2935199B3509EDEC26553C /* Security.framework */,
+				BB3B936D48E3F70D3296FFBA /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		146263771AC556A87FAB63A6 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				AC392F8BECCDFC08BF4BEDB5 /* GatewayManager.swift */,
+				90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		2C90E78AAD03572C4EE08DE1 /* Commands */ = {
+			isa = PBXGroup;
+			children = (
+				BC62EAC7E7430766E5D00644 /* APISettingsWindowManager.swift */,
+				8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */,
+			);
+			path = Commands;
+			sourceTree = "<group>";
+		};
+		7370B301BC3824D8E135198C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F2EA89B09E63D9954B6EA5A4 /* Jarvis.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8447A942E39174E3B9A57B4E /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A77902DA938F1B2320153714 /* ChatRequest.swift */,
+				CC0819919350A969D6088B8B /* ChatResponse.swift */,
+				04877521BE7E118FFC90684D /* LocationResult.swift */,
+				CD5A907E1425A49834AB790A /* RecognitionResult.swift */,
+				7858BBC214977568B88A1F72 /* SettingsRequest.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		9F07C4DEEC1A2069A212418E /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				8FCD56DF4279749289084814 /* APISettingsPanel.swift */,
+				E360B321077CE88F420BBCE2 /* ConfirmationCard.swift */,
+				2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */,
+				6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */,
+				A3268F17FB5F3213F02C5011 /* StatusBarController.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		BC0DCAC9B7584481D8C65021 = {
+			isa = PBXGroup;
+			children = (
+				146263771AC556A87FAB63A6 /* App */,
+				2C90E78AAD03572C4EE08DE1 /* Commands */,
+				E3CD63CD994CA69E02ED8ADE /* Gateway */,
+				8447A942E39174E3B9A57B4E /* Models */,
+				F3245DD5444EB997D40CF569 /* NativeActions */,
+				FB4993CCEFCC7B4D8D10375B /* Store */,
+				9F07C4DEEC1A2069A212418E /* UI */,
+				0495793F0272EAE711BB741E /* Frameworks */,
+				7370B301BC3824D8E135198C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E3CD63CD994CA69E02ED8ADE /* Gateway */ = {
+			isa = PBXGroup;
+			children = (
+				BB995D8A4DFFC20D52722BC3 /* GatewayClient.swift */,
+			);
+			path = Gateway;
+			sourceTree = "<group>";
+		};
+		F3245DD5444EB997D40CF569 /* NativeActions */ = {
+			isa = PBXGroup;
+			children = (
+				855105F2040B098186D04239 /* CaptureManager.swift */,
+				0EC7F17CD50645E1133CA35F /* EventKitTool.swift */,
+				EFADDFF5EF2E9C9923DB8754 /* MapKitTool.swift */,
+			);
+			path = NativeActions;
+			sourceTree = "<group>";
+		};
+		FB4993CCEFCC7B4D8D10375B /* Store */ = {
+			isa = PBXGroup;
+			children = (
+				2EEDD788380DF52443DF8692 /* APIConfigStore.swift */,
+				1B11BC154BB057B81C828BBF /* KeychainHelper.swift */,
+			);
+			path = Store;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		461D90920FCD8CAF83348871 /* Jarvis */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B6D5E915E8E9BDF0BF748745 /* Build configuration list for PBXNativeTarget "Jarvis" */;
+			buildPhases = (
+				E0992BE4761F337F2AC5BF62 /* Sources */,
+				886D43D159942AB5C149B33B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Jarvis;
+			packageProductDependencies = (
+			);
+			productName = Jarvis;
+			productReference = F2EA89B09E63D9954B6EA5A4 /* Jarvis.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		33E99CF1F5349721FD0BB40B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 5FF39917AC552CB1A0BD9FBA /* Build configuration list for PBXProject "Jarvis" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = BC0DCAC9B7584481D8C65021;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				92227E1279A64AE9865ED339 /* XCRemoteSwiftPackageReference "SwiftyJSON" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 7370B301BC3824D8E135198C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				461D90920FCD8CAF83348871 /* Jarvis */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E0992BE4761F337F2AC5BF62 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0619C927DA8A6DEC0267A7BF /* APIConfigStore.swift in Sources */,
+				CDCFF324A05A0F05827E0E0E /* APISettingsPanel.swift in Sources */,
+				DAC0A1E309C69A3B401B4AB5 /* APISettingsWindowManager.swift in Sources */,
+				6D9B3EF2AAE5DACA36F95EED /* CaptureManager.swift in Sources */,
+				204EA56C182EA85E5A023DAD /* ChatRequest.swift in Sources */,
+				533B9EB601D34C4B91024D14 /* ChatResponse.swift in Sources */,
+				7807D0D4FF45BF8B9B6924CF /* ConfirmationCard.swift in Sources */,
+				4700108C3D2CE846ED4B5C6C /* EventKitTool.swift in Sources */,
+				9C1D96254BB15E23E44A2886 /* GatewayClient.swift in Sources */,
+				C9E85AD51992D884D1C6C40A /* GatewayManager.swift in Sources */,
+				D216FA92EAB2E318278188A4 /* IslandPanel.swift in Sources */,
+				526BDF4D6BC5714809B2E937 /* JarvisApp.swift in Sources */,
+				16D83E050E127B59E28B857F /* JarvisCommands.swift in Sources */,
+				D32C7BB3B3928EDEC509649E /* KeychainHelper.swift in Sources */,
+				CC2360242A76906B1943FAF5 /* LocationPicker.swift in Sources */,
+				8894E6E14D51982134123495 /* LocationResult.swift in Sources */,
+				EFC129CFDAE671D78B59201B /* MapKitTool.swift in Sources */,
+				C8394B53D9D8555F0F1E7745 /* RecognitionResult.swift in Sources */,
+				6011C87CF9F1B27CDABD5CC7 /* SettingsRequest.swift in Sources */,
+				E648B0463FCECB1AED274277 /* StatusBarController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		06169DA02795A8ED87F6F021 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_ENTITLEMENTS = Resources/Jarvis.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_FILE = Jarvis/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jarvis.app;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		8A75D86FEE135E74011AB6D2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B81D099211BB3784F907E95C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_ENTITLEMENTS = Resources/Jarvis.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_FILE = Jarvis/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jarvis.app;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		CA2EDC6435E5128E90920A00 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5FF39917AC552CB1A0BD9FBA /* Build configuration list for PBXProject "Jarvis" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8A75D86FEE135E74011AB6D2 /* Debug */,
+				CA2EDC6435E5128E90920A00 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B6D5E915E8E9BDF0BF748745 /* Build configuration list for PBXNativeTarget "Jarvis" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				06169DA02795A8ED87F6F021 /* Debug */,
+				B81D099211BB3784F907E95C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		92227E1279A64AE9865ED339 /* XCRemoteSwiftPackageReference "SwiftyJSON" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/nicklockwood/SwiftyJSON";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+	};
+	rootObject = 33E99CF1F5349721FD0BB40B /* Project object */;
+}

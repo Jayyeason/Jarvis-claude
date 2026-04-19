@@ -1,0 +1,55 @@
+name: Jarvis
+options:
+  bundleIdPrefix: com.jarvis
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+packages:
+  KeyboardShortcuts:
+    url: https://github.com/nicklockwood/SwiftyJSON
+    from: "5.0.0"
+
+targets:
+  Jarvis:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: App
+      - path: UI
+      - path: Commands
+      - path: Gateway
+      - path: NativeActions
+      - path: Store
+      - path: Models
+    resources:
+      - path: Resources/Info.plist
+        buildPhase: none
+      - path: Resources/Jarvis.entitlements
+        buildPhase: none
+    info:
+      path: Resources/Info.plist
+    entitlements:
+      path: Resources/Jarvis.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jarvis.app
+        INFOPLIST_FILE: Jarvis/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Jarvis/Resources/Jarvis.entitlements
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "YES"
+        ENABLE_HARDENED_RUNTIME: "NO"
+    dependencies:
+      - sdk: AppKit.framework
+      - sdk: SwiftUI.framework
+      - sdk: ScreenCaptureKit.framework
+      - sdk: EventKit.framework
+      - sdk: MapKit.framework
+      - sdk: CoreLocation.framework
+      - sdk: Security.framework
