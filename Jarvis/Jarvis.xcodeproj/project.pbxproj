@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		032122FB62BB99DF2B67C41C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 42C816920474B2D07CCA46B0 /* Assets.xcassets */; };
 		0619C927DA8A6DEC0267A7BF /* APIConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEDD788380DF52443DF8692 /* APIConfigStore.swift */; };
 		16D83E050E127B59E28B857F /* JarvisCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */; };
 		204EA56C182EA85E5A023DAD /* ChatRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77902DA938F1B2320153714 /* ChatRequest.swift */; };
@@ -46,6 +47,7 @@
 		2EEDD788380DF52443DF8692 /* APIConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfigStore.swift; sourceTree = "<group>"; };
 		34376B43CD025E00DF1F61B2 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
 		36711C9BEB4870F367919209 /* IslandCapsuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCapsuleView.swift; sourceTree = "<group>"; };
+		42C816920474B2D07CCA46B0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPicker.swift; sourceTree = "<group>"; };
 		7858BBC214977568B88A1F72 /* SettingsRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRequest.swift; sourceTree = "<group>"; };
 		8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JarvisCommands.swift; sourceTree = "<group>"; };
@@ -164,11 +166,20 @@
 				E3CD63CD994CA69E02ED8ADE /* Gateway */,
 				8447A942E39174E3B9A57B4E /* Models */,
 				F3245DD5444EB997D40CF569 /* NativeActions */,
+				E0D27B0D0D5408CC6822E16C /* Resources */,
 				FB4993CCEFCC7B4D8D10375B /* Store */,
 				9F07C4DEEC1A2069A212418E /* UI */,
 				0495793F0272EAE711BB741E /* Frameworks */,
 				7370B301BC3824D8E135198C /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		E0D27B0D0D5408CC6822E16C /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				42C816920474B2D07CCA46B0 /* Assets.xcassets */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		E3CD63CD994CA69E02ED8ADE /* Gateway */ = {
@@ -205,6 +216,7 @@
 			buildConfigurationList = B6D5E915E8E9BDF0BF748745 /* Build configuration list for PBXNativeTarget "Jarvis" */;
 			buildPhases = (
 				E0992BE4761F337F2AC5BF62 /* Sources */,
+				C593366D9BBD0DC5F45EA023 /* Resources */,
 				886D43D159942AB5C149B33B /* Frameworks */,
 			);
 			buildRules = (
@@ -247,6 +259,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C593366D9BBD0DC5F45EA023 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				032122FB62BB99DF2B67C41C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E0992BE4761F337F2AC5BF62 /* Sources */ = {

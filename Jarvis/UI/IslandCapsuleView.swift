@@ -4,62 +4,64 @@ import SwiftUI
 struct IslandCapsuleView: View {
     let isExpanded: Bool
     let isCapturing: Bool
+    let notchHeight: CGFloat
     let onCapture: () -> Void
     let onSettings: () -> Void
 
     @ObservedObject private var configStore = APIConfigStore.shared
 
     var body: some View {
-        ZStack {
-            // Black capsule background
-            Capsule()
-                .fill(Color.black)
+        GeometryReader { geo in
+            if isExpanded || isCapturing {
+                ZStack(alignment: .top) {
+                    // Black capsule spanning full window height (notch + expanded area)
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 10,
+                        bottomLeadingRadius: 20,
+                        bottomTrailingRadius: 20,
+                        topTrailingRadius: 10
+                    )
+                    .fill(Color.black)
+                    .frame(width: geo.size.width, height: geo.size.height)
 
-            if isCapturing {
-                capturingContent
-            } else if isExpanded {
-                expandedContent
-            } else {
-                collapsedContent
+                    // Content sits below the notch area
+                    VStack(spacing: 0) {
+                        Color.clear.frame(height: notchHeight)
+                        Group {
+                            if isCapturing {
+                                capturingContent
+                            } else {
+                                expandedContent
+                            }
+                        }
+                        .frame(height: geo.size.height - notchHeight)
+                    }
+                }
             }
+            // Collapsed: fully transparent — notch itself provides the black visual
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - States
 
-    private var collapsedContent: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(Color.accentColor)
-                .frame(width: 10, height: 10)
-            Text("Jarvis")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white)
-        }
-    }
-
     private var expandedContent: some View {
         HStack(spacing: 0) {
-            // Capture button
-            CapsuleButton(icon: "camera.viewfinder", label: "截图", action: onCapture)
+            CapsuleButton(icon: "camera.viewfinder", label: nil, action: onCapture)
 
             divider
 
-            // Model name
-            Text(configStore.activeDisplayName)
-                .font(.system(size: 11))
-                .foregroundColor(.white.opacity(0.7))
-                .lineLimit(1)
-                .frame(maxWidth: 120)
-                .padding(.horizontal, 8)
+            ProviderIcon(providerId: configStore.activeProviderId)
+                .padding(.horizontal, 10)
 
             divider
 
-            // Settings button
             CapsuleButton(icon: "gearshape", label: nil, action: onSettings)
+
+            divider
+
+            CapsuleButton(icon: "power", label: nil, action: { NSApp.terminate(nil) })
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 4)
     }
 
     private var capturingContent: some View {
@@ -107,5 +109,25 @@ private struct CapsuleButton: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+    }
+}
+
+private struct ProviderIcon: View {
+    let providerId: String?
+
+    var body: some View {
+        let assetName = "provider_\(providerId ?? "")"
+        if let img = NSImage(named: assetName) {
+            Image(nsImage: img)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 16, height: 16)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+        } else {
+            Image(systemName: "cpu")
+                .font(.system(size: 13))
+                .foregroundColor(.white.opacity(0.75))
+        }
     }
 }
