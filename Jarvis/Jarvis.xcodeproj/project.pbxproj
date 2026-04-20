@@ -30,6 +30,7 @@
 		D216FA92EAB2E318278188A4 /* IslandPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */; };
 		DA890339691DB77FC0F90F9B /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34376B43CD025E00DF1F61B2 /* CoreLocation.framework */; };
 		DAC0A1E309C69A3B401B4AB5 /* APISettingsWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC62EAC7E7430766E5D00644 /* APISettingsWindowManager.swift */; };
+		E2E7275A17AADCD4753022B9 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13FE44FECF060B6D83CE5A /* Logger.swift */; };
 		E59F46A66B30A20BFB18F9FB /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C13014B148F85DD6898AA12D /* AppKit.framework */; };
 		E648B0463FCECB1AED274277 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3268F17FB5F3213F02C5011 /* StatusBarController.swift */; };
 		EFC129CFDAE671D78B59201B /* MapKitTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFADDFF5EF2E9C9923DB8754 /* MapKitTool.swift */; };
@@ -63,6 +64,7 @@
 		E360B321077CE88F420BBCE2 /* ConfirmationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmationCard.swift; sourceTree = "<group>"; };
 		EFADDFF5EF2E9C9923DB8754 /* MapKitTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapKitTool.swift; sourceTree = "<group>"; };
 		F2EA89B09E63D9954B6EA5A4 /* Jarvis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jarvis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA13FE44FECF060B6D83CE5A /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -102,6 +104,7 @@
 			children = (
 				AC392F8BECCDFC08BF4BEDB5 /* GatewayManager.swift */,
 				90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */,
+				FA13FE44FECF060B6D83CE5A /* Logger.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -259,6 +262,7 @@
 				16D83E050E127B59E28B857F /* JarvisCommands.swift in Sources */,
 				CC2360242A76906B1943FAF5 /* LocationPicker.swift in Sources */,
 				8894E6E14D51982134123495 /* LocationResult.swift in Sources */,
+				E2E7275A17AADCD4753022B9 /* Logger.swift in Sources */,
 				EFC129CFDAE671D78B59201B /* MapKitTool.swift in Sources */,
 				C8394B53D9D8555F0F1E7745 /* RecognitionResult.swift in Sources */,
 				6011C87CF9F1B27CDABD5CC7 /* SettingsRequest.swift in Sources */,

@@ -61,15 +61,17 @@ class EventKitTool {
             }
         }
 
+        guard let calendar = store.defaultCalendarForNewReminders() else {
+            throw EventKitError.noReminderCalendar
+        }
+
         let reminder = EKReminder(eventStore: store)
         reminder.title = result.title ?? "新提醒"
         reminder.notes = result.notes
-        reminder.calendar = store.defaultCalendarForNewReminders()
+        reminder.calendar = calendar
 
         if let due = result.dueDate {
-            var components = Calendar.current.dateComponents(
-                [.year, .month, .day], from: due
-            )
+            var components = Calendar.current.dateComponents([.year, .month, .day], from: due)
             if let timeStr = result.dueTime {
                 let parts = timeStr.split(separator: ":").compactMap { Int($0) }
                 if parts.count >= 2 {
@@ -78,13 +80,36 @@ class EventKitTool {
                 }
             }
             reminder.dueDateComponents = components
+
+            // Add alarm so it actually notifies
+            let alarm = EKAlarm(absoluteDate: Calendar.current.date(from: components) ?? due)
+            reminder.addAlarm(alarm)
         }
 
-        try store.save(reminder, commit: true)
+        switch result.priority {
+        case "high":   reminder.priority = 1
+        case "medium": reminder.priority = 5
+        case "low":    reminder.priority = 9
+        default:       reminder.priority = 0
+        }
+
+        do {
+            try store.save(reminder, commit: true)
+            jlog("[EventKit] Reminder saved: \(reminder.title ?? "") calendar=\(calendar.title)")
+        } catch {
+            jlog("[EventKit] Save reminder failed: \(error)")
+            throw error
+        }
     }
 }
 
 enum EventKitError: Error, LocalizedError {
     case accessDenied
-    var errorDescription: String? { "日历/提醒事项访问被拒绝，请在系统设置中授权" }
+    case noReminderCalendar
+    var errorDescription: String? {
+        switch self {
+        case .accessDenied:        return "日历/提醒事项访问被拒绝，请在系统设置中授权"
+        case .noReminderCalendar:  return "找不到默认提醒事项列表"
+        }
+    }
 }

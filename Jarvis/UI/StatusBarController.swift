@@ -5,14 +5,7 @@ import SwiftUI
 class StatusBarController: NSObject {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover?
-    private var trackingArea: NSTrackingArea?
-    private var isHovered = false
-    private var isExpanded = false
-
-    // Panels shown below the island
-    private var confirmationWindow: NSWindow?
-    private var isCapturing = false
-    private var pendingResult: ChatResponse?
+    private var confirmationPopover: NSPopover?
 
     override init() {
         super.init()
@@ -21,89 +14,72 @@ class StatusBarController: NSObject {
     }
 
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: 32)
         guard let button = statusItem.button else { return }
 
-        updateButtonToSilent(button)
-
-        let trackingArea = NSTrackingArea(
-            rect: .zero,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        button.addTrackingArea(trackingArea)
-        self.trackingArea = trackingArea
+        let logo = NSHostingView(rootView: JarvisLogoView())
+        logo.frame = NSRect(x: 5, y: 0, width: 22, height: NSStatusBar.system.thickness)
+        button.addSubview(logo)
 
         button.action = #selector(handleButtonClick)
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.target = self
+    }
+
+    @objc private func quitApp() {
+        NSApp.terminate(nil)
     }
 
     private func setupCapture() {
         CaptureManager.shared.onCaptureStart = { [weak self] in
-            Task { @MainActor in
-                self?.showCapturing()
-            }
+            Task { @MainActor in self?.showCapturing() }
         }
         CaptureManager.shared.onCaptureComplete = { [weak self] response in
-            Task { @MainActor in
-                self?.handleCaptureResult(response)
-            }
+            Task { @MainActor in self?.handleCaptureResult(response) }
         }
         CaptureManager.shared.onCaptureError = { [weak self] error in
-            Task { @MainActor in
-                self?.showError(error)
-            }
-        }
-    }
-
-    private func updateButtonToSilent(_ button: NSButton) {
-        let logo = NSHostingView(rootView: JarvisLogoView())
-        logo.frame = NSRect(x: 0, y: 0, width: 22, height: 22)
-        button.subviews.forEach { $0.removeFromSuperview() }
-        button.addSubview(logo)
-        button.frame = NSRect(x: 0, y: 0, width: 32, height: NSStatusBar.system.thickness)
-        statusItem.length = 32
-    }
-
-    private func updateButtonToExpanded(_ button: NSButton) {
-        let panel = NSHostingView(rootView: IslandPanel(
-            onDismiss: {},
-            onCaptureRequested: { [weak self] in
-                Task { @MainActor in self?.triggerCapture() }
-            },
-            onSettingsRequested: { [weak self] in
-                Task { @MainActor in self?.openSettings() }
-            }
-        ))
-        panel.frame = NSRect(x: 0, y: 0, width: 380, height: NSStatusBar.system.thickness)
-        button.subviews.forEach { $0.removeFromSuperview() }
-        button.addSubview(panel)
-        statusItem.length = 380
-    }
-
-    func mouseEntered(with event: NSEvent) {
-        guard !isExpanded else { return }
-        isExpanded = true
-        if let button = statusItem.button {
-            withAnimation(.easeOut(duration: 0.2)) {
-                updateButtonToExpanded(button)
-            }
-        }
-    }
-
-    func mouseExited(with event: NSEvent) {
-        guard isExpanded else { return }
-        isExpanded = false
-        if let button = statusItem.button {
-            withAnimation(.easeOut(duration: 0.2)) {
-                updateButtonToSilent(button)
-            }
+            Task { @MainActor in self?.restoreButton() }
         }
     }
 
     @objc private func handleButtonClick() {
-        // Clicks are handled inside the SwiftUI panel buttons
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            let menu = NSMenu()
+            menu.addItem(NSMenuItem(title: "退出 Jarvis", action: #selector(quitApp), keyEquivalent: "q"))
+            statusItem.popUpMenu(menu)
+            return
+        }
+        if let p = popover, p.isShown {
+            p.close()
+            popover = nil
+            return
+        }
+        guard let button = statusItem.button else { return }
+
+        let p = NSPopover()
+        p.contentViewController = NSHostingController(rootView: IslandPanel(
+            onCaptureRequested: { [weak self] in
+                Task { @MainActor in
+                    self?.closePopover()
+                    self?.triggerCapture()
+                }
+            },
+            onSettingsRequested: { [weak self] in
+                Task { @MainActor in
+                    self?.closePopover()
+                    self?.openSettings()
+                }
+            }
+        ))
+        p.behavior = .transient
+        p.animates = true
+        p.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover = p
+    }
+
+    private func closePopover() {
+        popover?.close()
+        popover = nil
     }
 
     func triggerCapture() {
@@ -116,39 +92,35 @@ class StatusBarController: NSObject {
 
     private func showCapturing() {
         guard let button = statusItem.button else { return }
+        button.subviews.forEach { $0.removeFromSuperview() }
         let view = NSHostingView(rootView: CapturingIndicator())
         view.frame = NSRect(x: 0, y: 0, width: 80, height: NSStatusBar.system.thickness)
-        button.subviews.forEach { $0.removeFromSuperview() }
         button.addSubview(view)
         statusItem.length = 80
-        isExpanded = false
     }
 
     private func handleCaptureResult(_ response: ChatResponse) {
         let result = RecognitionResult.from(response)
+        restoreButton()
         showConfirmationCard(result: result)
-        restoreButton()
-    }
-
-    private func showError(_ message: String) {
-        restoreButton()
-        // Show brief error in island
     }
 
     private func restoreButton() {
         guard let button = statusItem.button else { return }
-        updateButtonToSilent(button)
-        isExpanded = false
+        button.subviews.forEach { $0.removeFromSuperview() }
+        let logo = NSHostingView(rootView: JarvisLogoView())
+        logo.frame = NSRect(x: 5, y: 0, width: 22, height: NSStatusBar.system.thickness)
+        button.addSubview(logo)
+        statusItem.length = 32
     }
 
     func showSuccess() {
         guard let button = statusItem.button else { return }
+        button.subviews.forEach { $0.removeFromSuperview() }
         let view = NSHostingView(rootView: SuccessIndicator())
         view.frame = NSRect(x: 0, y: 0, width: 50, height: NSStatusBar.system.thickness)
-        button.subviews.forEach { $0.removeFromSuperview() }
         button.addSubview(view)
         statusItem.length = 50
-        isExpanded = false
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.restoreButton()
@@ -158,54 +130,40 @@ class StatusBarController: NSObject {
     private func showConfirmationCard(result: RecognitionResult) {
         guard result.eventType != nil else { return }
 
-        confirmationWindow?.close()
+        confirmationPopover?.close()
 
-        let hostingView = NSHostingView(rootView: ConfirmationCard(
+        let vc = NSHostingController(rootView: ConfirmationCard(
             result: result,
             onDismiss: { [weak self] in
                 Task { @MainActor in
-                    self?.confirmationWindow?.close()
-                    self?.confirmationWindow = nil
+                    self?.confirmationPopover?.close()
+                    self?.confirmationPopover = nil
                 }
             },
             onSuccess: { [weak self] in
                 Task { @MainActor in
-                    self?.confirmationWindow?.close()
-                    self?.confirmationWindow = nil
+                    self?.confirmationPopover?.close()
+                    self?.confirmationPopover = nil
                     self?.showSuccess()
                 }
             }
         ))
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 300),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = hostingView
-        window.backgroundColor = .clear
-        window.isOpaque = false
-        window.hasShadow = true
-        window.level = .statusBar
+        // Pre-calculate size synchronously so popover shows at full size immediately
+        vc.view.setFrameSize(NSSize(width: 300, height: 600))
+        vc.view.layoutSubtreeIfNeeded()
+        let h = vc.view.fittingSize.height
+        vc.preferredContentSize = NSSize(width: 300, height: h > 50 ? h : 280)
 
-        // Position below the status item button
-        if let button = statusItem.button, let buttonWindow = button.window {
-            let buttonFrame = buttonWindow.convertToScreen(button.frame)
-            let windowOrigin = NSPoint(
-                x: buttonFrame.midX - 150,
-                y: buttonFrame.minY - hostingView.fittingSize.height - 4
-            )
-            window.setFrameOrigin(windowOrigin)
-        }
+        let p = NSPopover()
+        p.contentViewController = vc
+        p.behavior = .semitransient
+        p.animates = false  // no animation avoids the size-jump flash
 
-        hostingView.setFrameSize(hostingView.fittingSize)
-        var frame = window.frame
-        frame.size = hostingView.fittingSize
-        window.setFrame(frame, display: true)
-
-        window.orderFront(nil)
-        confirmationWindow = window
+        guard let button = statusItem.button else { return }
+        p.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
+        confirmationPopover = p
     }
 }
 

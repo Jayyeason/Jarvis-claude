@@ -45,11 +45,13 @@ struct VerifyResponse: Codable {
 struct GatewayConfig: Codable {
     let activeProviderId: String?
     let activeModelId: String?
+    let activeModelVision: Bool?
     let providers: [String: ProviderConfig]?
 
     enum CodingKeys: String, CodingKey {
-        case activeProviderId = "active_provider_id"
-        case activeModelId    = "active_model_id"
+        case activeProviderId  = "active_provider_id"
+        case activeModelId     = "active_model_id"
+        case activeModelVision = "active_model_vision"
         case providers
     }
 }

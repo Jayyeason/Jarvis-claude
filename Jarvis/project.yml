@@ -7,6 +7,14 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
+schemes:
+  Jarvis:
+    build:
+      targets:
+        Jarvis: all
+    run:
+      config: Debug
+
 targets:
   Jarvis:
     type: application

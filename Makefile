@@ -7,6 +7,7 @@ BUILD_DIR = build/Jarvis.app
 # ── Swift ─────────────────────────────────────────────────────────────────────
 
 build:
+	cd Jarvis && xcodegen generate --quiet
 	xcodebuild \
 	  -project $(PROJECT) \
 	  -scheme $(SCHEME) \

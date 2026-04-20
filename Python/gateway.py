@@ -133,21 +133,32 @@ async def health():
     }
 
 
+def _model_supports_vision(provider_id: Optional[str], model_id: Optional[str]) -> bool:
+    if not provider_id or not model_id:
+        return False
+    cfg = PROVIDER_CONFIGS.get(provider_id, {})
+    vision_models = cfg.get("vision_models", [])
+    return model_id in vision_models
+
+
 @app.get("/config")
 async def get_config():
     """Return current config (no API keys exposed)."""
     cfg = load_config()
+    pid = cfg.get("active_provider_id")
+    mid = cfg.get("active_model_id")
     providers_display = {}
-    for pid, pcfg in cfg.get("providers", {}).items():
-        providers_display[pid] = {
+    for p, pcfg in cfg.get("providers", {}).items():
+        providers_display[p] = {
             "model_id":   pcfg.get("model_id"),
             "base_url":   pcfg.get("base_url"),
             "configured": pcfg.get("configured", False),
         }
     return {
-        "active_provider_id": cfg.get("active_provider_id"),
-        "active_model_id":    cfg.get("active_model_id"),
-        "providers":          providers_display,
+        "active_provider_id":    pid,
+        "active_model_id":       mid,
+        "active_model_vision":   _model_supports_vision(pid, mid),
+        "providers":             providers_display,
     }
 
 

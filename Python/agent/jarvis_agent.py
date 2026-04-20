@@ -1,79 +1,86 @@
 import json
-import re
 from datetime import datetime
 from typing import Optional
 from providers.base import BaseProvider
 
 SYSTEM_PROMPT = """你是 Jarvis，用户的 macOS AI 效率助理。
 
-用户会发给你截图，你需要识别其中的日程或任务信息。
+用户会发给你截图，你需要识别其中的日程或任务信息，然后调用对应的工具写入系统。
 
 ## 判断规则
-- 有持续时长（开会、吃饭、面试、课程）→ 日程（event_type: "calendar"）
-- 有截止时间的任务（交作业、缴费、提交）→ 提醒事项（event_type: "reminder"）
-- 无法识别 → event_type: null
+- 有持续时长（开会、吃饭、面试、课程、活动）→ 调用 create_calendar_event
+- 只有截止时间的任务（交作业、缴费、提交、截止、ddl）→ 调用 create_reminder
+- 无法识别 → 调用 no_event，说明原因
 
-## 输出格式（只输出 JSON，不要其他文字）
+## 时间处理
+- 当前时间：{current_time}
+- 相对时间（"明天"、"下周一"）请转换为绝对 ISO8601 时间
+- end_time 无法推断时省略，设 needs_duration: true
 
-日程：
-{
-  "event_type": "calendar",
-  "title": "事件标题",
-  "start_time": "2026-04-18T14:00:00",
-  "end_time": "2026-04-18T15:00:00",
-  "needs_duration": false,
-  "location": "地点（识别不到则省略）",
-  "notes": "备注（识别不到则省略）"
-}
+只调用一次工具，不要输出额外文字。"""
 
-说明：end_time 无法推断时省略并设 needs_duration: true
+TOOLS = [
+    {
+        "name": "create_calendar_event",
+        "description": "识别到日程类事件时调用，写入 macOS Calendar",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title":          {"type": "string",  "description": "事件标题"},
+                "start_time":     {"type": "string",  "description": "开始时间 ISO8601，如 2026-04-20T14:00:00"},
+                "end_time":       {"type": "string",  "description": "结束时间 ISO8601，无法推断时省略"},
+                "needs_duration": {"type": "boolean", "description": "end_time 缺失时设为 true"},
+                "location":       {"type": "string",  "description": "地点文字，识别不到则省略"},
+                "notes":          {"type": "string",  "description": "备注，识别不到则省略"},
+            },
+            "required": ["title", "start_time"],
+        },
+    },
+    {
+        "name": "create_reminder",
+        "description": "识别到提醒/任务类事件时调用，写入 macOS Reminders",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title":    {"type": "string", "description": "提醒标题"},
+                "due_date": {"type": "string", "description": "到期日期 YYYY-MM-DD，识别不到则省略"},
+                "due_time": {"type": "string", "description": "到期时间 HH:MM，识别不到则省略"},
+                "priority": {"type": "string", "description": "优先级：none / low / medium / high"},
+                "notes":    {"type": "string", "description": "备注，识别不到则省略"},
+            },
+            "required": ["title"],
+        },
+    },
+    {
+        "name": "no_event",
+        "description": "截图中没有识别到日程或任务时调用",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reply": {"type": "string", "description": "向用户说明原因"},
+            },
+            "required": ["reply"],
+        },
+    },
+]
 
-提醒事项：
-{
-  "event_type": "reminder",
-  "title": "任务标题",
-  "due_date": "2026-04-20",
-  "due_time": "22:00",
-  "notes": "备注（识别不到则省略）"
-}
-
-无法识别：
-{
-  "event_type": null,
-  "reply": "这张截图中没有识别到日程或任务信息"
-}
-
-当前时间：{current_time}
-"""
-
-
-def _extract_json(text: str) -> dict:
-    text = text.strip()
-    # Try direct parse
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    # Extract from markdown code block
-    match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
-    if match:
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            pass
-    # Find first { ... }
-    match = re.search(r"\{[\s\S]+\}", text)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            pass
-    raise ValueError(f"Cannot extract JSON from: {text[:200]}")
+# OpenAI-style tool schema (for non-Anthropic providers)
+TOOLS_OPENAI = [
+    {
+        "type": "function",
+        "function": {
+            "name": t["name"],
+            "description": t["description"],
+            "parameters": t["input_schema"],
+        },
+    }
+    for t in TOOLS
+]
 
 
 class JarvisAgent:
     def __init__(self):
-        self.max_retries = 2
+        pass
 
     async def run(
         self,
@@ -83,45 +90,21 @@ class JarvisAgent:
         provider: Optional[BaseProvider] = None,
     ) -> dict:
         if provider is None:
-            return {
-                "event_type": None,
-                "reply": "请先配置云端 API",
-                "error": "no_provider",
-            }
+            return {"event_type": None, "reply": "请先配置云端 API", "error": "no_provider"}
 
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
         system = SYSTEM_PROMPT.format(current_time=current_time)
 
-        messages = []
-        if message:
-            messages.append({"role": "user", "content": message})
-        elif image_base64:
-            messages.append({"role": "user", "content": "请识别这张截图中的日程或任务信息"})
+        user_text = message or "请识别这张截图中的日程或任务信息"
 
-        last_error = None
-        for attempt in range(self.max_retries + 1):
-            try:
-                raw = await provider.chat(
-                    messages=messages,
-                    image_base64=image_base64,
-                    system_prompt=system,
-                )
-                result = _extract_json(raw)
-                return result
-            except Exception as e:
-                last_error = e
-                if attempt < self.max_retries:
-                    messages.append({
-                        "role": "assistant",
-                        "content": raw if "raw" in dir() else str(e),
-                    })
-                    messages.append({
-                        "role": "user",
-                        "content": "请只输出 JSON，不要其他文字。",
-                    })
-
-        return {
-            "event_type": None,
-            "reply": "识别失败，请重试",
-            "error": str(last_error),
-        }
+        try:
+            result = await provider.chat_with_tools(
+                messages=[{"role": "user", "content": user_text}],
+                image_base64=image_base64,
+                system_prompt=system,
+                tools=TOOLS,
+                tools_openai=TOOLS_OPENAI,
+            )
+            return result
+        except Exception as e:
+            return {"event_type": None, "reply": "识别失败，请重试", "error": str(e)}

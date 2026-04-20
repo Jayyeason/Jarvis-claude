@@ -30,6 +30,7 @@ struct ConfirmationCard: View {
             }
         }
         .frame(width: 300)
+        .fixedSize(horizontal: true, vertical: true)
     }
 
     private var cardContent: some View {
@@ -89,11 +90,9 @@ struct ConfirmationCard: View {
                     }
                 } else {
                     if let due = result.dueDate {
-                        let timeStr = result.dueTime.map { " \($0)" } ?? ""
-                        FieldRow(key: "截止", value: formatDate(due) + timeStr)
-                    }
-                    if let priority = result.priority, priority != "none" {
-                        FieldRow(key: "优先级", value: priorityLabel(priority))
+                        let timeStr = result.dueTime ?? ""
+                        let dateStr = formatDate(due, timeOverride: timeStr.isEmpty ? nil : timeStr)
+                        FieldRow(key: "截止", value: dateStr)
                     }
                 }
 
@@ -160,8 +159,12 @@ struct ConfirmationCard: View {
         isWriting = false
     }
 
-    private func formatDate(_ date: Date) -> String {
+    private func formatDate(_ date: Date, timeOverride: String? = nil) -> String {
         let f = DateFormatter()
+        if let t = timeOverride {
+            f.dateFormat = "M月d日"
+            return f.string(from: date) + " \(t)"
+        }
         f.dateFormat = "M月d日 HH:mm"
         return f.string(from: date)
     }

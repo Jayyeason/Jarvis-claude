@@ -2,7 +2,6 @@ import SwiftUI
 
 struct IslandPanel: View {
     @ObservedObject var configStore = APIConfigStore.shared
-    let onDismiss: () -> Void
     let onCaptureRequested: () -> Void
     let onSettingsRequested: () -> Void
 
@@ -39,10 +38,7 @@ struct IslandPanel: View {
             .padding(.trailing, 6)
         }
         .padding(.vertical, 4)
-        .background(
-            VisualEffectView(material: .popover, blendingMode: .withinWindow)
-                .cornerRadius(6)
-        )
+        .padding(.horizontal, 4)
     }
 }
 

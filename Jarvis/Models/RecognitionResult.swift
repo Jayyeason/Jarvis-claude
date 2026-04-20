@@ -24,10 +24,15 @@ struct RecognitionResult {
 
         func parseDate(_ s: String?) -> Date? {
             guard let s else { return nil }
+            // Full datetime
             if let d = formatter.date(from: s) { return d }
             let f2 = DateFormatter()
             f2.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-            return f2.date(from: s)
+            if let d = f2.date(from: s) { return d }
+            // Date only: "2026-04-20"
+            let f3 = DateFormatter()
+            f3.dateFormat = "yyyy-MM-dd"
+            return f3.date(from: s)
         }
 
         return RecognitionResult(
