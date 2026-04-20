@@ -37,6 +37,7 @@
 		E59F46A66B30A20BFB18F9FB /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C13014B148F85DD6898AA12D /* AppKit.framework */; };
 		E648B0463FCECB1AED274277 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3268F17FB5F3213F02C5011 /* StatusBarController.swift */; };
 		EFC129CFDAE671D78B59201B /* MapKitTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFADDFF5EF2E9C9923DB8754 /* MapKitTool.swift */; };
+		F532541C150F58CB9DFBAC72 /* IslandDropdownMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6487778E02B7359BCD756F0 /* IslandDropdownMenu.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +64,7 @@
 		BC2935199B3509EDEC26553C /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		BC62EAC7E7430766E5D00644 /* APISettingsWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsWindowManager.swift; sourceTree = "<group>"; };
 		C13014B148F85DD6898AA12D /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		C6487778E02B7359BCD756F0 /* IslandDropdownMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandDropdownMenu.swift; sourceTree = "<group>"; };
 		C6AADCC1C319F0FBE8B1CE77 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
 		CC0819919350A969D6088B8B /* ChatResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatResponse.swift; sourceTree = "<group>"; };
 		CD5A907E1425A49834AB790A /* RecognitionResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecognitionResult.swift; sourceTree = "<group>"; };
@@ -150,6 +152,7 @@
 				8FCD56DF4279749289084814 /* APISettingsPanel.swift */,
 				E360B321077CE88F420BBCE2 /* ConfirmationCard.swift */,
 				36711C9BEB4870F367919209 /* IslandCapsuleView.swift */,
+				C6487778E02B7359BCD756F0 /* IslandDropdownMenu.swift */,
 				2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */,
 				8252FEFB239CA96729762422 /* IslandWindowController.swift */,
 				6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */,
@@ -287,6 +290,7 @@
 				9C1D96254BB15E23E44A2886 /* GatewayClient.swift in Sources */,
 				C9E85AD51992D884D1C6C40A /* GatewayManager.swift in Sources */,
 				B917CBA262E1035DD060FA17 /* IslandCapsuleView.swift in Sources */,
+				F532541C150F58CB9DFBAC72 /* IslandDropdownMenu.swift in Sources */,
 				D216FA92EAB2E318278188A4 /* IslandPanel.swift in Sources */,
 				506DAFA16139BEC46D0CFB0E /* IslandWindowController.swift in Sources */,
 				526BDF4D6BC5714809B2E937 /* JarvisApp.swift in Sources */,

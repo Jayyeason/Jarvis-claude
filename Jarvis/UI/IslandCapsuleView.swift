@@ -14,15 +14,10 @@ struct IslandCapsuleView: View {
         GeometryReader { geo in
             if isExpanded || isCapturing {
                 ZStack(alignment: .top) {
-                    // Black capsule spanning full window height (notch + expanded area)
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 10,
-                        bottomLeadingRadius: 20,
-                        bottomTrailingRadius: 20,
-                        topTrailingRadius: 10
-                    )
-                    .fill(Color.black)
-                    .frame(width: geo.size.width, height: geo.size.height)
+                    // Notch-shaped black background
+                    NotchShape(topRadius: 10, bottomRadius: 20)
+                        .fill(Color.black)
+                        .frame(width: geo.size.width, height: geo.size.height)
 
                     // Content sits below the notch area
                     VStack(spacing: 0) {
@@ -38,7 +33,6 @@ struct IslandCapsuleView: View {
                     }
                 }
             }
-            // Collapsed: fully transparent — notch itself provides the black visual
         }
     }
 
@@ -55,11 +49,7 @@ struct IslandCapsuleView: View {
 
             divider
 
-            CapsuleButton(icon: "gearshape", label: nil, action: onSettings)
-
-            divider
-
-            CapsuleButton(icon: "power", label: nil, action: { NSApp.terminate(nil) })
+            SettingsMenuButton(onSettings: onSettings)
         }
         .padding(.horizontal, 4)
     }
@@ -112,6 +102,53 @@ private struct CapsuleButton: View {
     }
 }
 
+private struct SettingsMenuButton: View {
+    let onSettings: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Image(systemName: "gearshape")
+            .font(.system(size: 12))
+            .foregroundColor(isHovered ? .white : .white.opacity(0.75))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isHovered ? Color.white.opacity(0.12) : Color.clear)
+            )
+            .onHover { isHovered = $0 }
+            .onTapGesture { showNSMenu() }
+    }
+
+    private func showNSMenu() {
+        let menu = NSMenu()
+        let settingsItem = NSMenuItem(title: "模型设置", action: nil, keyEquivalent: "")
+        settingsItem.representedObject = onSettings as AnyObject
+        settingsItem.target = MenuActionProxy.shared
+        settingsItem.action = #selector(MenuActionProxy.handleSettings(_:))
+        MenuActionProxy.shared.onSettings = onSettings
+        menu.addItem(settingsItem)
+        menu.addItem(NSMenuItem.separator())
+        let quitItem = NSMenuItem(title: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        quitItem.target = NSApp
+        menu.addItem(quitItem)
+
+        // Pop up at current mouse location
+        let loc = NSEvent.mouseLocation
+        menu.popUp(positioning: nil, at: NSPoint(x: loc.x, y: loc.y), in: nil)
+    }
+}
+
+@MainActor
+private class MenuActionProxy: NSObject {
+    static let shared = MenuActionProxy()
+    var onSettings: (() -> Void)?
+
+    @objc func handleSettings(_ sender: Any?) {
+        onSettings?()
+    }
+}
+
 private struct ProviderIcon: View {
     let providerId: String?
 
@@ -129,5 +166,37 @@ private struct ProviderIcon: View {
                 .font(.system(size: 13))
                 .foregroundColor(.white.opacity(0.75))
         }
+    }
+}
+
+struct NotchShape: Shape {
+    var topRadius: CGFloat = 10
+    var bottomRadius: CGFloat = 8
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(topRadius, bottomRadius) }
+        set { topRadius = newValue.first; bottomRadius = newValue.second }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let w = rect.width
+        let h = rect.height
+        let tr = topRadius
+        let br = min(bottomRadius, w / 2, h / 2)
+
+        path.move(to: CGPoint(x: -tr, y: 0))
+        path.addLine(to: CGPoint(x: w + tr, y: 0))
+        path.addQuadCurve(to: CGPoint(x: w, y: tr), control: CGPoint(x: w, y: 0))
+        path.addLine(to: CGPoint(x: w, y: h - br))
+        path.addArc(center: CGPoint(x: w - br, y: h - br), radius: br,
+                    startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+        path.addLine(to: CGPoint(x: br, y: h))
+        path.addArc(center: CGPoint(x: br, y: h - br), radius: br,
+                    startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+        path.addLine(to: CGPoint(x: 0, y: tr))
+        path.addQuadCurve(to: CGPoint(x: -tr, y: 0), control: CGPoint(x: 0, y: 0))
+        path.closeSubpath()
+        return path
     }
 }
