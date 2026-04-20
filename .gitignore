@@ -12,3 +12,4 @@ build/
 .venv/
 venv/
 ~/.jarvis/
+CLAUDE.md
