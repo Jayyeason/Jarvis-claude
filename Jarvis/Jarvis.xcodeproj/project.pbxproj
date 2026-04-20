@@ -12,6 +12,7 @@
 		204EA56C182EA85E5A023DAD /* ChatRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77902DA938F1B2320153714 /* ChatRequest.swift */; };
 		29FA1BA130329E4B307C37EB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB3B936D48E3F70D3296FFBA /* SwiftUI.framework */; };
 		4700108C3D2CE846ED4B5C6C /* EventKitTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC7F17CD50645E1133CA35F /* EventKitTool.swift */; };
+		506DAFA16139BEC46D0CFB0E /* IslandWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8252FEFB239CA96729762422 /* IslandWindowController.swift */; };
 		526BDF4D6BC5714809B2E937 /* JarvisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */; };
 		533B9EB601D34C4B91024D14 /* ChatResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0819919350A969D6088B8B /* ChatResponse.swift */; };
 		6011C87CF9F1B27CDABD5CC7 /* SettingsRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7858BBC214977568B88A1F72 /* SettingsRequest.swift */; };
@@ -23,6 +24,7 @@
 		94195FE597089F82A6453890 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC2935199B3509EDEC26553C /* Security.framework */; };
 		9B0E2914ED95DDFBC35AD735 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C6AADCC1C319F0FBE8B1CE77 /* MapKit.framework */; };
 		9C1D96254BB15E23E44A2886 /* GatewayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB995D8A4DFFC20D52722BC3 /* GatewayClient.swift */; };
+		B917CBA262E1035DD060FA17 /* IslandCapsuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36711C9BEB4870F367919209 /* IslandCapsuleView.swift */; };
 		C8394B53D9D8555F0F1E7745 /* RecognitionResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5A907E1425A49834AB790A /* RecognitionResult.swift */; };
 		C9E85AD51992D884D1C6C40A /* GatewayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC392F8BECCDFC08BF4BEDB5 /* GatewayManager.swift */; };
 		CC2360242A76906B1943FAF5 /* LocationPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */; };
@@ -43,9 +45,11 @@
 		2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPanel.swift; sourceTree = "<group>"; };
 		2EEDD788380DF52443DF8692 /* APIConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfigStore.swift; sourceTree = "<group>"; };
 		34376B43CD025E00DF1F61B2 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
+		36711C9BEB4870F367919209 /* IslandCapsuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCapsuleView.swift; sourceTree = "<group>"; };
 		6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPicker.swift; sourceTree = "<group>"; };
 		7858BBC214977568B88A1F72 /* SettingsRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRequest.swift; sourceTree = "<group>"; };
 		8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JarvisCommands.swift; sourceTree = "<group>"; };
+		8252FEFB239CA96729762422 /* IslandWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandWindowController.swift; sourceTree = "<group>"; };
 		855105F2040B098186D04239 /* CaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureManager.swift; sourceTree = "<group>"; };
 		8FCD56DF4279749289084814 /* APISettingsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsPanel.swift; sourceTree = "<group>"; };
 		90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JarvisApp.swift; sourceTree = "<group>"; };
@@ -143,7 +147,9 @@
 			children = (
 				8FCD56DF4279749289084814 /* APISettingsPanel.swift */,
 				E360B321077CE88F420BBCE2 /* ConfirmationCard.swift */,
+				36711C9BEB4870F367919209 /* IslandCapsuleView.swift */,
 				2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */,
+				8252FEFB239CA96729762422 /* IslandWindowController.swift */,
 				6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */,
 				A3268F17FB5F3213F02C5011 /* StatusBarController.swift */,
 			);
@@ -257,7 +263,9 @@
 				4700108C3D2CE846ED4B5C6C /* EventKitTool.swift in Sources */,
 				9C1D96254BB15E23E44A2886 /* GatewayClient.swift in Sources */,
 				C9E85AD51992D884D1C6C40A /* GatewayManager.swift in Sources */,
+				B917CBA262E1035DD060FA17 /* IslandCapsuleView.swift in Sources */,
 				D216FA92EAB2E318278188A4 /* IslandPanel.swift in Sources */,
+				506DAFA16139BEC46D0CFB0E /* IslandWindowController.swift in Sources */,
 				526BDF4D6BC5714809B2E937 /* JarvisApp.swift in Sources */,
 				16D83E050E127B59E28B857F /* JarvisCommands.swift in Sources */,
 				CC2360242A76906B1943FAF5 /* LocationPicker.swift in Sources */,

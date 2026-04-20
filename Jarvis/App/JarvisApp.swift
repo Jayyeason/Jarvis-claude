@@ -11,13 +11,38 @@ struct JarvisApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var statusBarController: StatusBarController?
     private var globalHotkey: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         GatewayManager.shared.start()
-        statusBarController = StatusBarController()
+
+        // Island window
+        let island = IslandWindowController.shared
+        island.onCaptureRequested = { CaptureManager.shared.capture() }
+        island.onSettingsRequested = { APISettingsWindowManager.shared.open() }
+        island.setup()
+
+        // Wire capture callbacks
+        CaptureManager.shared.onCaptureStart = {
+            Task { @MainActor in IslandWindowController.shared.showCapturing() }
+        }
+        CaptureManager.shared.onCaptureComplete = { response in
+            Task { @MainActor in
+                let result = RecognitionResult.from(response)
+                IslandWindowController.shared.restoreIdle()
+                guard result.eventType != nil else { return }
+                IslandWindowController.shared.showConfirmationCard(
+                    result: result,
+                    onDismiss: {},
+                    onSuccess: { IslandWindowController.shared.showSuccess() }
+                )
+            }
+        }
+        CaptureManager.shared.onCaptureError = { _ in
+            Task { @MainActor in IslandWindowController.shared.restoreIdle() }
+        }
+
         registerGlobalHotkey()
     }
 
@@ -29,7 +54,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func registerGlobalHotkey() {
-        // Prompt for accessibility permission if not granted
         let trusted = AXIsProcessTrustedWithOptions(
             [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         )
