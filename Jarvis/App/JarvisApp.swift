@@ -21,6 +21,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let island = IslandWindowController.shared
         island.onCaptureRequested = { CaptureManager.shared.capture() }
         island.onSettingsRequested = { APISettingsWindowManager.shared.open() }
+        island.onTaskListRequested = {
+            let anchorRect = IslandWindowController.shared.notchRect
+            TaskListWindowManager.shared.toggle(anchorRect: anchorRect)
+        }
         island.setup()
 
         // Wire capture callbacks
@@ -32,11 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let result = RecognitionResult.from(response)
                 IslandWindowController.shared.restoreIdle()
                 guard result.eventType != nil else { return }
-                IslandWindowController.shared.showConfirmationCard(
-                    result: result,
-                    onDismiss: {},
-                    onSuccess: { IslandWindowController.shared.showSuccess() }
-                )
+                IslandWindowController.shared.showConfirmation(result: result)
             }
         }
         CaptureManager.shared.onCaptureError = { _ in

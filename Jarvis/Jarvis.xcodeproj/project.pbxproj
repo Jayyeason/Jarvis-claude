@@ -12,6 +12,7 @@
 		16D83E050E127B59E28B857F /* JarvisCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */; };
 		204EA56C182EA85E5A023DAD /* ChatRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77902DA938F1B2320153714 /* ChatRequest.swift */; };
 		29FA1BA130329E4B307C37EB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB3B936D48E3F70D3296FFBA /* SwiftUI.framework */; };
+		3BFEA2B540080BBBDA453361 /* TaskListWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADBE62D2F5A7F2D9B78578F /* TaskListWindowManager.swift */; };
 		4700108C3D2CE846ED4B5C6C /* EventKitTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC7F17CD50645E1133CA35F /* EventKitTool.swift */; };
 		506DAFA16139BEC46D0CFB0E /* IslandWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8252FEFB239CA96729762422 /* IslandWindowController.swift */; };
 		526BDF4D6BC5714809B2E937 /* JarvisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */; };
@@ -31,8 +32,10 @@
 		CC2360242A76906B1943FAF5 /* LocationPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */; };
 		CDCFF324A05A0F05827E0E0E /* APISettingsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FCD56DF4279749289084814 /* APISettingsPanel.swift */; };
 		D216FA92EAB2E318278188A4 /* IslandPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */; };
+		D95C2673F867599C8694556C /* TaskListPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B8F1BE063DC5AE821E467A /* TaskListPanel.swift */; };
 		DA890339691DB77FC0F90F9B /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34376B43CD025E00DF1F61B2 /* CoreLocation.framework */; };
 		DAC0A1E309C69A3B401B4AB5 /* APISettingsWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC62EAC7E7430766E5D00644 /* APISettingsWindowManager.swift */; };
+		DB80DF5A7F1960461F91D710 /* TaskListStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05145D4A3CDA9B6E533786CC /* TaskListStore.swift */; };
 		E2E7275A17AADCD4753022B9 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13FE44FECF060B6D83CE5A /* Logger.swift */; };
 		E59F46A66B30A20BFB18F9FB /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C13014B148F85DD6898AA12D /* AppKit.framework */; };
 		E648B0463FCECB1AED274277 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3268F17FB5F3213F02C5011 /* StatusBarController.swift */; };
@@ -42,6 +45,8 @@
 
 /* Begin PBXFileReference section */
 		04877521BE7E118FFC90684D /* LocationResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationResult.swift; sourceTree = "<group>"; };
+		05145D4A3CDA9B6E533786CC /* TaskListStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListStore.swift; sourceTree = "<group>"; };
+		09B8F1BE063DC5AE821E467A /* TaskListPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListPanel.swift; sourceTree = "<group>"; };
 		0B4D53AD65B421DD2327AD97 /* ScreenCaptureKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScreenCaptureKit.framework; path = System/Library/Frameworks/ScreenCaptureKit.framework; sourceTree = SDKROOT; };
 		0EC7F17CD50645E1133CA35F /* EventKitTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitTool.swift; sourceTree = "<group>"; };
 		2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPanel.swift; sourceTree = "<group>"; };
@@ -73,6 +78,7 @@
 		EFADDFF5EF2E9C9923DB8754 /* MapKitTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapKitTool.swift; sourceTree = "<group>"; };
 		F2EA89B09E63D9954B6EA5A4 /* Jarvis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jarvis.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA13FE44FECF060B6D83CE5A /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		FADBE62D2F5A7F2D9B78578F /* TaskListWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListWindowManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,6 +128,7 @@
 			children = (
 				BC62EAC7E7430766E5D00644 /* APISettingsWindowManager.swift */,
 				8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */,
+				FADBE62D2F5A7F2D9B78578F /* TaskListWindowManager.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -157,6 +164,7 @@
 				8252FEFB239CA96729762422 /* IslandWindowController.swift */,
 				6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */,
 				A3268F17FB5F3213F02C5011 /* StatusBarController.swift */,
+				09B8F1BE063DC5AE821E467A /* TaskListPanel.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -207,6 +215,7 @@
 			isa = PBXGroup;
 			children = (
 				2EEDD788380DF52443DF8692 /* APIConfigStore.swift */,
+				05145D4A3CDA9B6E533786CC /* TaskListStore.swift */,
 			);
 			path = Store;
 			sourceTree = "<group>";
@@ -302,6 +311,9 @@
 				C8394B53D9D8555F0F1E7745 /* RecognitionResult.swift in Sources */,
 				6011C87CF9F1B27CDABD5CC7 /* SettingsRequest.swift in Sources */,
 				E648B0463FCECB1AED274277 /* StatusBarController.swift in Sources */,
+				D95C2673F867599C8694556C /* TaskListPanel.swift in Sources */,
+				DB80DF5A7F1960461F91D710 /* TaskListStore.swift in Sources */,
+				3BFEA2B540080BBBDA453361 /* TaskListWindowManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
