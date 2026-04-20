@@ -22,40 +22,40 @@ Python 进程（Agent + LLM 层）
 
 ### 依赖
 
-- macOS 13+，Xcode 15+
+- macOS 13+，Xcode 15+，xcodegen（`brew install xcodegen`）
 - Python 3.11+
 
-### 1. 启动 Python 后端
+### 1. Python 后端
+
+创建虚拟环境并安装依赖：
 
 ```bash
 cd Python
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-python gateway.py
+```
+
+启动后端（每次开发前激活环境）：
+
+```bash
+source Python/.venv/bin/activate
+python Python/gateway.py
 ```
 
 后端默认监听 `http://localhost:8765`。
 
-### 2. 编译 Swift 应用
-
-**方式一：Xcode**
+### 2. Swift 前端
 
 ```bash
-open Jarvis/Jarvis.xcodeproj
+make build   # 编译
+make run     # 编译 + 启动
 ```
 
-在 Xcode 中选择 My Mac target，⌘R 运行。
-
-**方式二：命令行**
+或者一条命令同时启动前后端：
 
 ```bash
-make build
-# 或
-xcodebuild -project Jarvis/Jarvis.xcodeproj \
-  -scheme Jarvis \
-  -configuration Debug \
-  -derivedDataPath build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO
-open build/DerivedData/Build/Products/Debug/Jarvis.app
+make dev
 ```
 
 ### 3. 配置 API Key
