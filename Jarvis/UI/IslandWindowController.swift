@@ -16,6 +16,7 @@ class IslandWindowController {
 
     var onCaptureRequested: (() -> Void)?
     var onSettingsRequested: (() -> Void)?
+    var onTaskListRequested: (() -> Void)?
 
     // MARK: - Notch geometry
 
@@ -137,6 +138,7 @@ class IslandWindowController {
             pendingResult: pendingResult,
             notchHeight: nr.height,
             onCapture: { [weak self] in self?.onCaptureRequested?() },
+            onTaskList: { [weak self] in self?.onTaskListRequested?() },
             onSettings: { [weak self] in self?.onSettingsRequested?() },
             onConfirmSuccess: { [weak self] in self?.showSuccess() },
             onConfirmDismiss: { [weak self] in self?.restoreIdle() }

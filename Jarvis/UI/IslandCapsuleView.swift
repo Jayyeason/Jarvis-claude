@@ -8,6 +8,7 @@ struct IslandCapsuleView: View {
     let pendingResult: RecognitionResult?
     let notchHeight: CGFloat
     let onCapture: () -> Void
+    let onTaskList: () -> Void
     let onSettings: () -> Void
     let onConfirmSuccess: () -> Void
     let onConfirmDismiss: () -> Void
@@ -56,6 +57,8 @@ struct IslandCapsuleView: View {
     private var expandedContent: some View {
         HStack(spacing: 0) {
             CapsuleButton(icon: "camera.viewfinder", label: nil, action: onCapture)
+            divider
+            CapsuleButton(icon: "list.bullet", label: nil, action: onTaskList)
             divider
             ProviderIcon(providerId: configStore.activeProviderId)
                 .padding(.horizontal, 10)
