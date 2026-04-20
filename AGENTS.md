@@ -106,4 +106,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: AGENTS.md,.codex/skills/jarvis-session-memory/SKILL.md,.codex/skills/jarvis-session-memory/scripts/log_memory.py
 - Decision: Use AGENTS.md as persistent cross-conversation memory ledger
 - Next: Commit and push these changes
+### 2026-04-20 20:37:13 +0800 | milestone
+- Summary: Committed and pushed session memory skill to remote branch
+- Files: AGENTS.md,.codex/skills/jarvis-session-memory/*
+- Decision: Track branch feat/model-set on origin for future updates
+- Next: Use this skill in future tasks to append milestone logs
 
