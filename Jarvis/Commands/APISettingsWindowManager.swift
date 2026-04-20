@@ -20,6 +20,7 @@ class APISettingsWindowManager {
             defer: false
         )
         w.title = "配置云端 API"
+        w.isReleasedWhenClosed = false
         w.contentView = NSHostingView(rootView: APISettingsPanel())
         w.center()
         w.makeKeyAndOrderFront(nil)

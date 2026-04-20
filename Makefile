@@ -21,11 +21,12 @@ run: build
 
 # ── Python ────────────────────────────────────────────────────────────────────
 
-install-python:
-	pip3 install -r Python/requirements.txt
+venv:
+	python3 -m venv Python/.venv
+	Python/.venv/bin/pip install -r Python/requirements.txt
 
 python:
-	cd Python && python3 gateway.py
+	cd Python && .venv/bin/python gateway.py
 
 # ── Dev（两个进程一起启动）────────────────────────────────────────────────────
 
