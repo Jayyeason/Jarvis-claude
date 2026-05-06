@@ -1,17 +1,17 @@
 ---
 name: jarvis-session-memory
-description: Persist project memory for the Jarvis-claude repository by appending structured milestone logs to /Users/kk/Jarvis-claude/AGENTS.md. Use when a subtask or milestone is completed, when key decisions are made, and before final delivery so future conversations inherit current context.
+description: Persist project memory for the Jarvis-claude repository by appending structured milestone logs to /Users/kk/Jarvis-claude/DevMemory/Collabaration.md. Use when a subtask or milestone is completed, when key decisions are made, and before final delivery so future conversations inherit current context.
 ---
 
 # Jarvis Session Memory
 
 ## Overview
 
-Append compact, structured progress memory entries to `AGENTS.md` so work context survives across different conversations. Keep entries factual and scoped to completed work.
+Append compact, structured progress memory entries to `DevMemory/Collabaration.md` so work context survives across different conversations. Keep entries factual and scoped to completed work.
 
 ## Workflow
 
-1. Confirm target file is `/Users/kk/Jarvis-claude/AGENTS.md`.
+1. Confirm target file is `/Users/kk/Jarvis-claude/DevMemory/Collabaration.md`.
 2. After each completed milestone, run:
 ```bash
 python3 .codex/skills/jarvis-session-memory/scripts/log_memory.py \
@@ -32,7 +32,7 @@ python3 .codex/skills/jarvis-session-memory/scripts/log_memory.py \
 
 ## Output Format
 
-Append entries under the `## Session Memory Ledger` section in `AGENTS.md`:
+Append entries under the `## Session Memory Ledger` section in `DevMemory/Collabaration.md`:
 
 ```md
 ### YYYY-MM-DD HH:MM:SS +ZZZZ | milestone

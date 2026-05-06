@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Append a structured progress entry to AGENTS.md session memory ledger."""
+"""Append a structured progress entry to DevMemory/Collabaration.md."""
 
 from __future__ import annotations
 
@@ -8,22 +8,41 @@ from datetime import datetime
 from pathlib import Path
 
 
-DEFAULT_LOG_FILE = Path("/Users/kk/Jarvis-claude/AGENTS.md")
+RELATIVE_LOG_FILE = Path("DevMemory/Collabaration.md")
 LEDGER_HEADER = "## Session Memory Ledger"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Append a memory ledger entry to AGENTS.md")
+    parser = argparse.ArgumentParser(
+        description="Append a memory ledger entry to DevMemory/Collabaration.md"
+    )
     parser.add_argument("--summary", required=True, help="What milestone was completed")
     parser.add_argument("--files", default="none", help="Comma-separated list of touched files")
     parser.add_argument("--decision", default="none", help="Key decision made in this step")
     parser.add_argument("--next", dest="next_step", default="none", help="Next planned action")
     parser.add_argument(
         "--log-file",
-        default=str(DEFAULT_LOG_FILE),
-        help="Path to AGENTS.md file",
+        default="",
+        help=(
+            "Path to memory file. Default is repository-relative "
+            "DevMemory/Collabaration.md"
+        ),
     )
     return parser.parse_args()
+
+
+def find_repo_root(start: Path) -> Path | None:
+    for candidate in [start, *start.parents]:
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def resolve_default_log_file() -> Path:
+    repo_root = find_repo_root(Path(__file__).resolve())
+    if repo_root:
+        return repo_root / RELATIVE_LOG_FILE
+    return Path.cwd() / RELATIVE_LOG_FILE
 
 
 def ensure_ledger(content: str) -> str:
@@ -50,7 +69,7 @@ def append_entry(content: str, summary: str, files: str, decision: str, next_ste
 
 def main() -> int:
     args = parse_args()
-    log_file = Path(args.log_file)
+    log_file = Path(args.log_file) if args.log_file else resolve_default_log_file()
     if not log_file.exists():
         raise FileNotFoundError(f"Log file does not exist: {log_file}")
 

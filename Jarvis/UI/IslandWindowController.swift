@@ -57,6 +57,7 @@ class IslandWindowController {
     // MARK: - State transitions
 
     func showCapturing() {
+        jlog("[Island] showCapturing")
         isCapturing = true
         pendingResult = nil
         updateContent()
@@ -64,6 +65,7 @@ class IslandWindowController {
     }
 
     func showConfirmation(result: RecognitionResult) {
+        jlog("[Island] showConfirmation type=\(result.eventType?.rawValue ?? "none")")
         isCapturing = false
         pendingResult = result
         updateContent()
@@ -84,6 +86,7 @@ class IslandWindowController {
     }
 
     func restoreIdle() {
+        jlog("[Island] restoreIdle")
         isCapturing = false
         pendingResult = nil
         if isExpanded { collapsePanel() } else { updateContent() }

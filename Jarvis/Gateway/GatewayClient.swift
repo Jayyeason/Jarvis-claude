@@ -5,6 +5,7 @@ enum GatewayError: Error, LocalizedError {
     case verifyFailed(String)
     case chatFailed(String)
     case notConfigured
+    case invalidResponse
 
     var errorDescription: String? {
         switch self {
@@ -12,6 +13,7 @@ enum GatewayError: Error, LocalizedError {
         case .verifyFailed(let msg):   return "验证失败: \(msg)"
         case .chatFailed(let msg):     return "请求失败: \(msg)"
         case .notConfigured:           return "请先配置云端 API"
+        case .invalidResponse:         return "网关返回无效响应"
         }
     }
 }
@@ -105,8 +107,27 @@ actor GatewayClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(req)
         request.timeoutInterval = 60
-        let (data, _) = try await session.data(for: request)
-        return try decoder.decode(ChatResponse.self, from: data)
+        let started = Date()
+        jlog("[GatewayClient] POST /chat input_mode=\(req.inputMode) image=\(req.image != nil) message_chars=\(req.message.count)")
+        let (data, response) = try await session.data(for: request)
+        let elapsed = String(format: "%.2f", Date().timeIntervalSince(started))
+        guard let http = response as? HTTPURLResponse else {
+            jlog("[GatewayClient] /chat invalid response elapsed=\(elapsed)s bytes=\(data.count)")
+            throw GatewayError.invalidResponse
+        }
+        jlog("[GatewayClient] /chat status=\(http.statusCode) elapsed=\(elapsed)s bytes=\(data.count)")
+        guard http.statusCode == 200 else {
+            let body = String(data: data.prefix(1000), encoding: .utf8) ?? "<non-utf8>"
+            jlog("[GatewayClient] /chat error body=\(body)")
+            throw GatewayError.chatFailed("HTTP \(http.statusCode)")
+        }
+        do {
+            return try decoder.decode(ChatResponse.self, from: data)
+        } catch {
+            let body = String(data: data.prefix(1000), encoding: .utf8) ?? "<non-utf8>"
+            jlog("[GatewayClient] /chat decode failed: \(error); body=\(body)")
+            throw error
+        }
     }
 
     func health() async throws -> Bool {

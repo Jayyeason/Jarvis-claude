@@ -31,6 +31,7 @@ struct ConfirmationCard: View {
         }
         .frame(width: 300)
         .fixedSize(horizontal: true, vertical: true)
+        .task(id: result.location) { await resolveLocationIfNeeded() }
     }
 
     private var cardContent: some View {
@@ -68,26 +69,6 @@ struct ConfirmationCard: View {
                     if let end = result.endTime {
                         FieldRow(key: "结束", value: formatDate(end))
                     }
-                    if let loc = result.location {
-                        HStack {
-                            FieldRow(
-                                key: "地点",
-                                value: selectedLocation?.name ?? loc
-                            )
-                            if selectedLocation != nil {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.system(size: 11))
-                            }
-                            Button("更改") { showLocationPicker = true }
-                                .buttonStyle(.plain)
-                                .foregroundColor(.accentColor)
-                                .font(.system(size: 11))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 6)
-                        Divider()
-                    }
                 } else {
                     if let due = result.dueDate {
                         let timeStr = result.dueTime ?? ""
@@ -96,8 +77,32 @@ struct ConfirmationCard: View {
                     }
                 }
 
+                if let loc = result.location {
+                    HStack {
+                        FieldRow(
+                            key: "地点",
+                            value: selectedLocation?.name ?? loc
+                        )
+                        if selectedLocation != nil {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.system(size: 11))
+                        }
+                        Button("更改") { showLocationPicker = true }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.accentColor)
+                            .font(.system(size: 11))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    Divider()
+                }
+
                 if let notes = result.notes {
                     FieldRow(key: "备注", value: notes)
+                }
+                if let url = result.url {
+                    FieldRow(key: "链接", value: url.absoluteString)
                 }
             }
             .padding(.vertical, 4)
@@ -143,20 +148,35 @@ struct ConfirmationCard: View {
         isWriting = true
         writeError = nil
         do {
-            if isCalendar {
-                try await EventKitTool.shared.createEvent(
-                    result: result,
-                    latitude: selectedLocation?.latitude,
-                    longitude: selectedLocation?.longitude
-                )
-            } else {
-                try await EventKitTool.shared.createReminder(result: result)
+            rememberLocationIfNeeded()
+            switch result {
+            case .calendar(let event):
+                try await EventKitTool.shared.createEvent(result: event, selectedLocation: selectedLocation)
+            case .reminder(let reminder):
+                try await EventKitTool.shared.createReminder(result: reminder, selectedLocation: selectedLocation)
+            case .none, .error:
+                break
             }
             onSuccess()
         } catch {
             writeError = error.localizedDescription
         }
         isWriting = false
+    }
+
+    private func resolveLocationIfNeeded() async {
+        guard selectedLocation == nil, let keyword = result.location, !keyword.isEmpty else { return }
+        if let remembered = LocationMemoryStore.lookup(keyword: keyword) {
+            selectedLocation = remembered
+            return
+        }
+        let matches = await MapKitTool.search(keyword: keyword)
+        selectedLocation = matches.first
+    }
+
+    private func rememberLocationIfNeeded() {
+        guard let keyword = result.location, let selectedLocation else { return }
+        LocationMemoryStore.save(keyword: keyword, result: selectedLocation)
     }
 
     private func formatDate(_ date: Date, timeOverride: String? = nil) -> String {

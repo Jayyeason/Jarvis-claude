@@ -172,13 +172,6 @@ private struct ConfirmationInlineView: View {
                             .scaleEffect(0.85, anchor: .leading)
                             .frame(height: 22)
                     }
-                    Divider().background(Color.white.opacity(0.08))
-                    InlineField(label: "地点") {
-                        TextField("", text: $location)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
-                    }
                 } else {
                     InlineField(label: "截止") {
                         DatePicker("", selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
@@ -188,6 +181,14 @@ private struct ConfirmationInlineView: View {
                             .scaleEffect(0.85, anchor: .leading)
                             .frame(height: 22)
                     }
+                }
+
+                Divider().background(Color.white.opacity(0.08))
+                InlineField(label: "地点") {
+                    TextField("", text: $location)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white)
                 }
 
                 Divider().background(Color.white.opacity(0.08))
@@ -237,32 +238,36 @@ private struct ConfirmationInlineView: View {
     private func write() async {
         isWriting = true
         writeError = nil
-        // Build a modified result with edited values
-        let edited = RecognitionResult(
-            eventType: result.eventType,
-            title: title.isEmpty ? nil : title,
-            startTime: isCalendar ? startTime : nil,
-            endTime: isCalendar ? endTime : nil,
-            needsDuration: result.needsDuration,
-            location: isCalendar ? (location.isEmpty ? nil : location) : nil,
-            notes: notes.isEmpty ? nil : notes,
-            dueDate: isCalendar ? nil : dueDate,
-            dueTime: result.dueTime,
-            priority: result.priority,
-            reply: result.reply,
-            error: nil
-        )
         do {
-            if isCalendar {
-                try await EventKitTool.shared.createEvent(result: edited, latitude: nil, longitude: nil)
-            } else {
-                try await EventKitTool.shared.createReminder(result: edited)
+            switch result {
+            case .calendar(var event):
+                event.title = title.isEmpty ? "新日程" : title
+                event.startTime = startTime
+                event.endTime = endTime
+                event.location = location.isEmpty ? nil : location
+                event.notes = notes.isEmpty ? nil : notes
+                try await EventKitTool.shared.createEvent(result: event)
+            case .reminder(var reminder):
+                reminder.title = title.isEmpty ? "新提醒" : title
+                reminder.dueDate = dueDate
+                reminder.dueTime = formatTime(dueDate)
+                reminder.location = location.isEmpty ? nil : location
+                reminder.notes = notes.isEmpty ? nil : notes
+                try await EventKitTool.shared.createReminder(result: reminder)
+            case .none, .error:
+                break
             }
             onSuccess()
         } catch {
             writeError = error.localizedDescription
             isWriting = false
         }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 }
 

@@ -1,8 +1,10 @@
 import sys
 import os
 import json
+import logging
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -13,7 +15,12 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from providers.provider_factory import create_provider
 from providers.provider_configs import PROVIDER_CONFIGS
-from agent.jarvis_agent import JarvisAgent
+from agent import JarvisAgent
+from logger import LOG_PATH, configure_logging
+
+
+configure_logging()
+logger = logging.getLogger("gateway")
 
 
 # ── Config persistence ────────────────────────────────────────────────────────
@@ -26,6 +33,7 @@ def load_config() -> dict:
         try:
             return json.loads(CONFIG_PATH.read_text())
         except Exception:
+            logger.exception("Could not load config from %s", CONFIG_PATH)
             return {}
     return {}
 
@@ -40,20 +48,59 @@ def save_config(data: dict):
 class ChatRequest(BaseModel):
     message: str = ""
     image: Optional[str] = None
+    input_mode: Literal["vision", "ocr_text", "user_text"] = "user_text"
     session_id: Optional[str] = None
 
 
-class ChatResponse(BaseModel):
-    event_type: Optional[str] = None
+class RecurrencePayload(BaseModel):
+    frequency: Literal["daily", "weekly", "monthly", "yearly"]
+    interval: int = 1
+    weekdays: Optional[list[Literal[
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ]]] = None
+    end_date: Optional[str] = None
+    occurrence_count: Optional[int] = None
+
+
+class CalendarPayload(BaseModel):
     title: Optional[str] = None
+    notes: Optional[str] = None
+    location: Optional[str] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
+    is_all_day: bool = False
     needs_duration: bool = False
-    location: Optional[str] = None
+    recurrence: Optional[RecurrencePayload] = None
+    travel_time_minutes: Optional[int] = None
+    alert_minutes_before_start: int = 10
+    calendar_name: Optional[str] = None
+    url: Optional[str] = None
+
+
+class ReminderPayload(BaseModel):
+    title: Optional[str] = None
     notes: Optional[str] = None
+    location: Optional[str] = None
     due_date: Optional[str] = None
     due_time: Optional[str] = None
-    priority: Optional[str] = None
+    recurrence: Optional[RecurrencePayload] = None
+    alert_minutes_before_due: Optional[int] = None
+    list_name: str = "提醒事项"
+    priority: Literal["none", "low", "medium", "high"] = "none"
+    flagged: bool = False
+    url: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    type: Literal["calendar", "reminder", "none", "error"]
+    calendar: Optional[CalendarPayload] = None
+    reminder: Optional[ReminderPayload] = None
     reply: Optional[str] = None
     error: Optional[str] = None
 
@@ -105,9 +152,9 @@ async def lifespan(app: FastAPI):
             app.state.active_provider    = provider
             app.state.active_provider_id = pid
             app.state.active_model_id    = mid
-            print(f"[Gateway] Restored provider: {pid}/{mid}")
+            logger.info("Restored provider: %s/%s", pid, mid)
         except Exception as e:
-            print(f"[Gateway] Could not restore provider: {e}")
+            logger.exception("Could not restore provider: %s", e)
 
     yield
 
@@ -223,18 +270,39 @@ async def verify_provider(req: VerifyRequest):
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
+    started = time.monotonic()
+    logger.info(
+        "POST /chat session=%s input_mode=%s image=%s message_chars=%s provider=%s model=%s",
+        req.session_id,
+        req.input_mode,
+        bool(req.image),
+        len(req.message or ""),
+        app.state.active_provider_id,
+        app.state.active_model_id,
+    )
     if app.state.active_provider is None:
-        return ChatResponse(reply="请先配置云端 API", error="no_provider")
+        logger.warning("POST /chat no active provider")
+        return ChatResponse(type="error", reply="请先配置云端 API", error="no_provider")
     try:
         result = await app.state.agent.run(
             message=req.message,
             image_base64=req.image,
             session_id=req.session_id,
+            input_mode=req.input_mode,
             provider=app.state.active_provider,
         )
-        return ChatResponse(**{k: v for k, v in result.items() if k in ChatResponse.model_fields})
+        response = ChatResponse(**{k: v for k, v in result.items() if k in ChatResponse.model_fields})
+        logger.info(
+            "POST /chat done session=%s type=%s error=%s elapsed=%.2fs",
+            req.session_id,
+            response.type,
+            response.error,
+            time.monotonic() - started,
+        )
+        return response
     except Exception as e:
-        return ChatResponse(reply="识别失败，请重试", error=str(e))
+        logger.exception("POST /chat failed session=%s elapsed=%.2fs", req.session_id, time.monotonic() - started)
+        return ChatResponse(type="error", reply="识别失败，请重试", error=str(e))
 
 
 def _default_model(provider_id: str) -> str:
@@ -245,4 +313,5 @@ def _default_model(provider_id: str) -> str:
 
 if __name__ == "__main__":
     import uvicorn
+    logger.info("Starting Jarvis gateway on 127.0.0.1:8765 log=%s", LOG_PATH)
     uvicorn.run(app, host="127.0.0.1", port=8765, log_level="warning")

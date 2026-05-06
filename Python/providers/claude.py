@@ -1,7 +1,12 @@
+import logging
+import time
 import anthropic
 from typing import Optional
 from .base import BaseProvider
-from .openai_compat import _tool_call_to_result
+from agent.result import normalize_tool_result
+
+
+logger = logging.getLogger("provider.claude")
 
 
 class ClaudeProvider(BaseProvider):
@@ -30,6 +35,8 @@ class ClaudeProvider(BaseProvider):
         tools: Optional[list] = None,
         tools_openai: Optional[list] = None,
     ) -> dict:
+        started = time.monotonic()
+        logger.info("chat_with_tools start model=%s image=%s tools=%s", self.model, bool(image_base64), len(tools or []))
         api_messages = self._build_messages(messages, image_base64)
         kwargs: dict = {
             "model": self.model,
@@ -41,10 +48,19 @@ class ClaudeProvider(BaseProvider):
         if system_prompt:
             kwargs["system"] = system_prompt
         response = await self.client.messages.create(**kwargs)
+        logger.info("chat_with_tools response model=%s elapsed=%.2fs", self.model, time.monotonic() - started)
         for block in response.content:
             if block.type == "tool_use":
-                return _tool_call_to_result(block.name, block.input)
-        return {"event_type": None, "reply": "无法识别", "error": "no_tool_call"}
+                logger.info("tool_use name=%s elapsed=%.2fs", block.name, time.monotonic() - started)
+                return normalize_tool_result(block.name, block.input)
+        logger.warning("no tool call elapsed=%.2fs", time.monotonic() - started)
+        return {
+            "type": "none",
+            "calendar": None,
+            "reminder": None,
+            "reply": "无法识别",
+            "error": "no_tool_call",
+        }
 
     async def verify(self) -> list[str]:
         from anthropic import APIStatusError

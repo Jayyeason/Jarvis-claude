@@ -1,4 +1,4 @@
 interface:
   display_name: "Jarvis Session Memory"
-  short_description: "Keep AGENTS.md updated with task progress logs"
-  default_prompt: "Use this skill to append structured progress memory entries into AGENTS.md after each completed milestone."
+  short_description: "Keep Collabaration.md progress logs updated"
+  default_prompt: "Use this skill to append structured progress memory entries into DevMemory/Collabaration.md after each completed milestone."
