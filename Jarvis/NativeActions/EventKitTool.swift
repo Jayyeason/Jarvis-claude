@@ -8,9 +8,13 @@ class EventKitTool {
     private let store = EKEventStore()
 
     func requestAccess() async throws {
+        try await requestEventAccess()
+        try await requestReminderAccess()
+    }
+
+    private func requestEventAccess() async throws {
         if #available(macOS 14.0, *) {
             try await store.requestFullAccessToEvents()
-            try await store.requestFullAccessToReminders()
         } else {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 store.requestAccess(to: .event) { granted, error in
@@ -22,33 +26,7 @@ class EventKitTool {
         }
     }
 
-    func createEvent(result: RecognitionResult, latitude: Double? = nil, longitude: Double? = nil) async throws {
-        try await requestAccess()
-
-        let event = EKEvent(eventStore: store)
-        event.title = result.title ?? "新日程"
-        event.startDate = result.startTime ?? Date()
-        event.endDate = result.endTime ?? (result.startTime?.addingTimeInterval(3600) ?? Date().addingTimeInterval(3600))
-        event.notes = result.notes
-        event.calendar = store.defaultCalendarForNewEvents
-
-        if let loc = result.location {
-            event.location = loc
-        }
-
-        if let lat = latitude, let lon = longitude {
-            let structured = EKStructuredLocation(title: result.location ?? "")
-            structured.geoLocation = CLLocation(latitude: lat, longitude: lon)
-            event.structuredLocation = structured
-        }
-
-        let alarm = EKAlarm(relativeOffset: -30 * 60)
-        event.addAlarm(alarm)
-
-        try store.save(event, span: .thisEvent)
-    }
-
-    func createReminder(result: RecognitionResult) async throws {
+    private func requestReminderAccess() async throws {
         if #available(macOS 14.0, *) {
             try await store.requestFullAccessToReminders()
         } else {
@@ -60,15 +38,67 @@ class EventKitTool {
                 }
             }
         }
+    }
 
-        guard let calendar = store.defaultCalendarForNewReminders() else {
+    func createEvent(result: CalendarRecognition, selectedLocation: LocationResult? = nil) async throws {
+        try await requestEventAccess()
+
+        guard let cal = eventCalendar(named: result.calendarName) else {
+            throw EventKitError.noCalendar
+        }
+
+        let startDate = result.startTime ?? Date()
+        var endDate = result.endTime ?? startDate.addingTimeInterval(3600)
+        if result.isAllDay && endDate <= startDate {
+            endDate = Calendar.current.date(byAdding: .day, value: 1, to: startDate) ?? startDate.addingTimeInterval(86400)
+        }
+
+        let event = EKEvent(eventStore: store)
+        event.title = result.title
+        event.startDate = startDate
+        event.endDate = endDate
+        event.isAllDay = result.isAllDay
+        event.notes = result.notes
+        event.calendar = cal
+        event.url = result.url
+
+        let locationTitle = selectedLocation?.name ?? result.location
+        if let locationTitle, !locationTitle.isEmpty {
+            event.location = locationTitle
+        }
+
+        if let selectedLocation,
+           selectedLocation.latitude != 0 || selectedLocation.longitude != 0 {
+            let structured = EKStructuredLocation(title: selectedLocation.name)
+            structured.geoLocation = CLLocation(latitude: selectedLocation.latitude, longitude: selectedLocation.longitude)
+            event.structuredLocation = structured
+        }
+
+        if result.alertMinutesBeforeStart >= 0 {
+            event.addAlarm(EKAlarm(relativeOffset: TimeInterval(-result.alertMinutesBeforeStart * 60)))
+        }
+
+        if let rule = makeRecurrenceRule(from: result.recurrence) {
+            event.addRecurrenceRule(rule)
+        }
+
+        try store.save(event, span: .thisEvent)
+    }
+
+    func createReminder(result: ReminderRecognition, selectedLocation: LocationResult? = nil) async throws {
+        try await requestReminderAccess()
+
+        guard let calendar = reminderCalendar(named: result.listName) else {
             throw EventKitError.noReminderCalendar
         }
 
         let reminder = EKReminder(eventStore: store)
-        reminder.title = result.title ?? "新提醒"
+        reminder.title = result.title
         reminder.notes = result.notes
         reminder.calendar = calendar
+        reminder.url = result.url
+        reminder.location = selectedLocation?.name ?? result.location
+        reminder.priority = priorityValue(result.priority)
 
         if let due = result.dueDate {
             var components = Calendar.current.dateComponents([.year, .month, .day], from: due)
@@ -81,35 +111,108 @@ class EventKitTool {
             }
             reminder.dueDateComponents = components
 
-            // Add alarm so it actually notifies
-            let alarm = EKAlarm(absoluteDate: Calendar.current.date(from: components) ?? due)
-            reminder.addAlarm(alarm)
+            if let minutes = result.alertMinutesBeforeDue,
+               let dueDate = Calendar.current.date(from: components) {
+                reminder.addAlarm(EKAlarm(absoluteDate: dueDate.addingTimeInterval(TimeInterval(-minutes * 60))))
+            }
         }
 
-        switch result.priority {
-        case "high":   reminder.priority = 1
-        case "medium": reminder.priority = 5
-        case "low":    reminder.priority = 9
-        default:       reminder.priority = 0
+        if let rule = makeRecurrenceRule(from: result.recurrence) {
+            reminder.addRecurrenceRule(rule)
         }
 
-        do {
-            try store.save(reminder, commit: true)
-            jlog("[EventKit] Reminder saved: \(reminder.title ?? "") calendar=\(calendar.title)")
-        } catch {
-            jlog("[EventKit] Save reminder failed: \(error)")
-            throw error
+        try store.save(reminder, commit: true)
+    }
+
+    private func eventCalendar(named name: String?) -> EKCalendar? {
+        if let name, !name.isEmpty {
+            let match = store.calendars(for: .event).first {
+                $0.title == name && $0.allowsContentModifications
+            }
+            if let match { return match }
+        }
+        return store.defaultCalendarForNewEvents
+            ?? store.calendars(for: .event).first(where: { $0.allowsContentModifications })
+    }
+
+    private func reminderCalendar(named name: String?) -> EKCalendar? {
+        if let name, !name.isEmpty {
+            let match = store.calendars(for: .reminder).first {
+                $0.title == name && $0.allowsContentModifications
+            }
+            if let match { return match }
+        }
+        return store.defaultCalendarForNewReminders()
+            ?? store.calendars(for: .reminder).first(where: { $0.allowsContentModifications })
+    }
+
+    private func priorityValue(_ priority: String) -> Int {
+        switch priority {
+        case "high": return 1
+        case "medium": return 5
+        case "low": return 9
+        default: return 0
+        }
+    }
+
+    private func makeRecurrenceRule(from recurrence: RecurrenceRule?) -> EKRecurrenceRule? {
+        guard let recurrence else { return nil }
+
+        let frequency: EKRecurrenceFrequency
+        switch recurrence.frequency {
+        case "daily": frequency = .daily
+        case "weekly": frequency = .weekly
+        case "monthly": frequency = .monthly
+        case "yearly": frequency = .yearly
+        default: return nil
+        }
+
+        let end: EKRecurrenceEnd?
+        if let count = recurrence.occurrenceCount, count > 0 {
+            end = EKRecurrenceEnd(occurrenceCount: count)
+        } else if let date = recurrence.endDate {
+            end = EKRecurrenceEnd(end: date)
+        } else {
+            end = nil
+        }
+
+        return EKRecurrenceRule(
+            recurrenceWith: frequency,
+            interval: max(recurrence.interval, 1),
+            daysOfTheWeek: recurrence.weekdays?.compactMap(makeWeekday),
+            daysOfTheMonth: nil,
+            monthsOfTheYear: nil,
+            weeksOfTheYear: nil,
+            daysOfTheYear: nil,
+            setPositions: nil,
+            end: end
+        )
+    }
+
+    private func makeWeekday(_ value: String) -> EKRecurrenceDayOfWeek? {
+        switch value {
+        case "monday": return EKRecurrenceDayOfWeek(.monday)
+        case "tuesday": return EKRecurrenceDayOfWeek(.tuesday)
+        case "wednesday": return EKRecurrenceDayOfWeek(.wednesday)
+        case "thursday": return EKRecurrenceDayOfWeek(.thursday)
+        case "friday": return EKRecurrenceDayOfWeek(.friday)
+        case "saturday": return EKRecurrenceDayOfWeek(.saturday)
+        case "sunday": return EKRecurrenceDayOfWeek(.sunday)
+        default: return nil
         }
     }
 }
 
 enum EventKitError: Error, LocalizedError {
     case accessDenied
+    case noCalendar
     case noReminderCalendar
+
     var errorDescription: String? {
         switch self {
-        case .accessDenied:        return "日历/提醒事项访问被拒绝，请在系统设置中授权"
-        case .noReminderCalendar:  return "找不到默认提醒事项列表"
+        case .accessDenied: return "日历/提醒事项访问被拒绝，请在系统设置中授权"
+        case .noCalendar: return "找不到可用的日历，请在日历 app 中创建一个"
+        case .noReminderCalendar: return "找不到默认提醒事项列表"
         }
     }
 }

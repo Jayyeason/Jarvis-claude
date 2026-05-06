@@ -35,15 +35,26 @@ class CaptureManager {
             if supportsVision {
                 let base64 = try compressToJPEG(image)
                 jlog("[Capture] Sending image (base64 size=\(base64.count))")
-                req = ChatRequest(message: "", image: base64, sessionId: UUID().uuidString)
+                req = ChatRequest(
+                    message: "",
+                    image: base64,
+                    inputMode: "vision",
+                    sessionId: UUID().uuidString
+                )
             } else {
                 let text = try await ocrText(from: image)
-                jlog("[Capture] OCR result: \(text.prefix(100))")
-                req = ChatRequest(message: text, image: nil, sessionId: UUID().uuidString)
+                jlog("[Capture] OCR result chars=\(text.count) preview=\(text.prefix(200))")
+                req = ChatRequest(
+                    message: text,
+                    image: nil,
+                    inputMode: "ocr_text",
+                    sessionId: UUID().uuidString
+                )
             }
 
+            jlog("[Capture] Calling gateway /chat")
             let response = try await GatewayClient.shared.chat(req)
-            jlog("[Capture] Got response: event_type=\(response.eventType ?? "nil") error=\(response.error ?? "none")")
+            jlog("[Capture] Got response: type=\(response.type) error=\(response.error ?? "none")")
             onCaptureComplete?(response)
         } catch CaptureError.cancelled {
             jlog("[Capture] User cancelled")

@@ -1,1 +1,1 @@
-from .jarvis_agent import JarvisAgent
+from .agent import JarvisAgent

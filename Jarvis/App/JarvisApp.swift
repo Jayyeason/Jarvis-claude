@@ -14,6 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var globalHotkey: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        jlog("[App] Launching Jarvis. Logs: \(jlogPathDescription())")
         NSApp.setActivationPolicy(.accessory)
         GatewayManager.shared.start()
 

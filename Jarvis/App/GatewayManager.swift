@@ -40,13 +40,14 @@ class GatewayManager: ObservableObject {
         proc.standardError = pipe
         pipe.fileHandleForReading.readabilityHandler = { fh in
             if let s = String(data: fh.availableData, encoding: .utf8), !s.isEmpty {
-                jlog("[Python] \(s.trimmingCharacters(in: .newlines))")
+                jlog(s.trimmingCharacters(in: .newlines), file: .python)
             }
         }
 
         do {
             try proc.run()
             jlog("[GatewayManager] Python process started (pid=\(proc.processIdentifier))")
+            jlog("[GatewayManager] Python process started (pid=\(proc.processIdentifier))", file: .python)
             self.process = proc
         } catch {
             jlog("[GatewayManager] ERROR: Failed to start Python: \(error)")

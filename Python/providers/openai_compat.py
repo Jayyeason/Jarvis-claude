@@ -1,7 +1,13 @@
+import logging
+import time
 import httpx
 from openai import AsyncOpenAI
 from typing import Optional
 from .base import BaseProvider
+from agent.result import normalize_tool_result
+
+
+logger = logging.getLogger("provider.openai_compat")
 
 
 class OpenAICompatProvider(BaseProvider):
@@ -32,6 +38,14 @@ class OpenAICompatProvider(BaseProvider):
         tools: Optional[list] = None,
         tools_openai: Optional[list] = None,
     ) -> dict:
+        started = time.monotonic()
+        logger.info(
+            "chat_with_tools start model=%s base_url=%s image=%s tools=%s",
+            self.model,
+            self.base_url,
+            bool(image_base64),
+            len(tools_openai or []),
+        )
         api_messages = self._build_messages(messages, image_base64, system_prompt)
         response = await self.client.chat.completions.create(
             model=self.model,
@@ -40,14 +54,23 @@ class OpenAICompatProvider(BaseProvider):
             tool_choice="required",
             max_tokens=2048,
         )
+        logger.info("chat_with_tools response model=%s elapsed=%.2fs", self.model, time.monotonic() - started)
         msg = response.choices[0].message
         if msg.tool_calls:
             tc = msg.tool_calls[0]
             import json
             args = json.loads(tc.function.arguments)
-            return _tool_call_to_result(tc.function.name, args)
+            logger.info("tool_call name=%s elapsed=%.2fs", tc.function.name, time.monotonic() - started)
+            return normalize_tool_result(tc.function.name, args)
         # Fallback: no tool call returned
-        return {"event_type": None, "reply": msg.content or "无法识别", "error": "no_tool_call"}
+        logger.warning("no tool call elapsed=%.2fs", time.monotonic() - started)
+        return {
+            "type": "none",
+            "calendar": None,
+            "reminder": None,
+            "reply": msg.content or "无法识别",
+            "error": "no_tool_call",
+        }
 
     async def verify(self) -> list[str]:
         try:
@@ -94,30 +117,3 @@ class OllamaProvider(OpenAICompatProvider):
             resp.raise_for_status()
             data = resp.json()
             return [m["name"] for m in data.get("models", [])]
-
-
-def _tool_call_to_result(name: str, args: dict) -> dict:
-    if name == "create_calendar_event":
-        return {
-            "event_type": "calendar",
-            "title": args.get("title"),
-            "start_time": args.get("start_time"),
-            "end_time": args.get("end_time"),
-            "needs_duration": args.get("needs_duration", False),
-            "location": args.get("location"),
-            "notes": args.get("notes"),
-        }
-    elif name == "create_reminder":
-        return {
-            "event_type": "reminder",
-            "title": args.get("title"),
-            "due_date": args.get("due_date"),
-            "due_time": args.get("due_time"),
-            "priority": args.get("priority", "none"),
-            "notes": args.get("notes"),
-        }
-    else:  # no_event
-        return {
-            "event_type": None,
-            "reply": args.get("reply", "截图中没有识别到日程或任务"),
-        }
