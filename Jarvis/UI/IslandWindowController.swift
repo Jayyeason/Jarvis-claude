@@ -12,7 +12,9 @@ class IslandWindowController {
     private(set) var isExpanded = false
     private(set) var isCapturing = false
     private(set) var isSuccess = false
-    private(set) var pendingResult: RecognitionResult?
+    private(set) var pendingResponse: AgentResponse?
+    private(set) var pendingProactive: ProactiveEvent?
+    private(set) var compactStatusText: String?
 
     var onCaptureRequested: (() -> Void)?
     var onSettingsRequested: (() -> Void)?
@@ -32,12 +34,16 @@ class IslandWindowController {
         return NSRect(x: tl.maxX, y: tl.minY, width: tr.minX - tl.maxX, height: tl.height)
     }
 
+    var currentPanelFrame: NSRect {
+        panel?.frame ?? notchRect
+    }
+
     private var expandedSize: NSSize {
         NSSize(width: max(notchRect.width, 280), height: notchRect.height + 44)
     }
 
     private var confirmationSize: NSSize {
-        NSSize(width: max(notchRect.width, 340), height: notchRect.height + 280)
+        NSSize(width: max(notchRect.width, 360), height: notchRect.height + 340)
     }
 
     // MARK: - Setup
@@ -59,23 +65,67 @@ class IslandWindowController {
     func showCapturing() {
         jlog("[Island] showCapturing")
         isCapturing = true
-        pendingResult = nil
+        pendingResponse = nil
+        pendingProactive = nil
+        compactStatusText = nil
         updateContent()
         if !isExpanded { expandPanel() }
     }
 
-    func showConfirmation(result: RecognitionResult) {
-        jlog("[Island] showConfirmation type=\(result.eventType?.rawValue ?? "none")")
+    func showAgentResponse(_ response: AgentResponse) {
+        jlog("[Island] showAgentResponse type=\(response.type) candidates=\(response.candidates?.count ?? 0)")
         isCapturing = false
-        pendingResult = result
+        compactStatusText = nil
+        pendingResponse = response
+        pendingProactive = nil
+        let candidates = response.candidates ?? []
+        if response.type == "batch", !candidates.isEmpty {
+            isExpanded = false
+            pendingResponse = nil
+            compactStatusText = "识别到 \(candidates.count) 项"
+            updateContent()
+            setContentFrame(size: notchRect.size, animated: true)
+            BatchReviewWindowManager.shared.open(response: response)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) { [weak self] in
+                guard self?.compactStatusText == "识别到 \(candidates.count) 项" else { return }
+                self?.compactStatusText = nil
+                self?.restoreIdle()
+            }
+        } else {
+            updateContent()
+            if !isExpanded { expandPanel(size: confirmationSize) }
+            else { setContentFrame(size: confirmationSize, animated: true) }
+        }
+    }
+
+    func showProactive(_ event: ProactiveEvent) {
+        jlog("[Island] showProactive type=\(event.triggerType) id=\(event.id)")
+        isCapturing = false
+        pendingResponse = nil
+        pendingProactive = event
+        compactStatusText = nil
         updateContent()
         if !isExpanded { expandPanel(size: confirmationSize) }
         else { setContentFrame(size: confirmationSize, animated: true) }
     }
 
+    func showConfirmation(result: RecognitionResult) {
+        showAgentResponse(AgentResponse(
+            type: result.eventType == nil ? "none" : "batch",
+            sessionId: nil,
+            candidates: [],
+            reply: nil,
+            error: nil,
+            missingFields: [],
+            prefilled: nil
+        ))
+    }
+
     func showSuccess() {
         isCapturing = false
-        pendingResult = nil
+        pendingResponse = nil
+        pendingProactive = nil
+        compactStatusText = nil
         isSuccess = true
         updateContent()
         setContentFrame(size: expandedSize, animated: true)
@@ -88,14 +138,16 @@ class IslandWindowController {
     func restoreIdle() {
         jlog("[Island] restoreIdle")
         isCapturing = false
-        pendingResult = nil
+        pendingResponse = nil
+        pendingProactive = nil
+        compactStatusText = nil
         if isExpanded { collapsePanel() } else { updateContent() }
     }
 
     // MARK: - Private
 
     private func checkHoverState() {
-        guard pendingResult == nil && !isCapturing else { return }
+        guard pendingResponse == nil && pendingProactive == nil && compactStatusText == nil && !isCapturing else { return }
         let loc = NSEvent.mouseLocation
         let inNotch = notchRect.contains(loc)
         let inContent = panel?.frame.contains(loc) ?? false
@@ -138,11 +190,17 @@ class IslandWindowController {
             isExpanded: isExpanded,
             isCapturing: isCapturing,
             isSuccess: isSuccess,
-            pendingResult: pendingResult,
+            pendingResponse: pendingResponse,
+            pendingProactive: pendingProactive,
+            compactStatusText: compactStatusText,
             notchHeight: nr.height,
             onCapture: { [weak self] in self?.onCaptureRequested?() },
             onTaskList: { [weak self] in self?.onTaskListRequested?() },
             onSettings: { [weak self] in self?.onSettingsRequested?() },
+            onOpenBatchReview: { [weak self] in
+                guard let response = self?.pendingResponse else { return }
+                BatchReviewWindowManager.shared.open(response: response)
+            },
             onConfirmSuccess: { [weak self] in self?.showSuccess() },
             onConfirmDismiss: { [weak self] in self?.restoreIdle() }
         )
@@ -165,8 +223,8 @@ class IslandWindowController {
         let newFrame = NSRect(origin: NSPoint(x: x, y: y), size: size)
         if animated {
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.35
-                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0.46, 0.45, 0.94)
+                ctx.duration = 0.44
+                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.22, 0.61, 0.36, 1.0)
                 ctx.allowsImplicitAnimation = true
                 panel.animator().setFrame(newFrame, display: true)
             }
@@ -199,9 +257,21 @@ class UnconstrainedPanel: NSPanel {
         return frameRect
     }
 
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown || event.type == .rightMouseDown || event.type == .otherMouseDown {
+            activateJarvisFromFloatingWindow()
+        }
+        super.sendEvent(event)
+    }
+
     override func rightMouseDown(with event: NSEvent) {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "退出 Jarvis", action: #selector(NSApp.terminate(_:)), keyEquivalent: ""))
         NSMenu.popUpContextMenu(menu, with: event, for: contentView ?? NSView())
+    }
+
+    private func activateJarvisFromFloatingWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        jlog("[Island] activated Jarvis from floating window click")
     }
 }

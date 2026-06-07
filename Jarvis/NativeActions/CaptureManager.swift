@@ -6,7 +6,7 @@ import Vision
 class CaptureManager {
     static let shared = CaptureManager()
 
-    var onCaptureComplete: ((ChatResponse) -> Void)?
+    var onCaptureComplete: ((AgentResponse) -> Void)?
     var onCaptureStart: (() -> Void)?
     var onCaptureError: ((String) -> Void)?
 
@@ -22,19 +22,23 @@ class CaptureManager {
         defer { isCapturing = false }
 
         do {
+            let totalStarted = Date()
             jlog("[Capture] Starting interactive region capture")
+            let captureStarted = Date()
             let image = try await captureRegion()
-            jlog("[Capture] Region captured")
+            jlog("[Capture] Region captured elapsed=\(Self.formatElapsed(from: captureStarted))")
             onCaptureStart?()
 
             // Check if active model supports vision
+            let configStarted = Date()
             let supportsVision = (try? await GatewayClient.shared.getConfig())?.activeModelVision ?? false
-            jlog("[Capture] Model vision support: \(supportsVision)")
+            jlog("[Capture] Model vision support: \(supportsVision) config_elapsed=\(Self.formatElapsed(from: configStarted))")
 
             let req: ChatRequest
             if supportsVision {
+                let encodeStarted = Date()
                 let base64 = try compressToJPEG(image)
-                jlog("[Capture] Sending image (base64 size=\(base64.count))")
+                jlog("[Capture] Sending image (base64 size=\(base64.count)) encode_elapsed=\(Self.formatElapsed(from: encodeStarted))")
                 req = ChatRequest(
                     message: "",
                     image: base64,
@@ -42,8 +46,9 @@ class CaptureManager {
                     sessionId: UUID().uuidString
                 )
             } else {
+                let ocrStarted = Date()
                 let text = try await ocrText(from: image)
-                jlog("[Capture] OCR result chars=\(text.count) preview=\(text.prefix(200))")
+                jlog("[Capture] OCR result elapsed=\(Self.formatElapsed(from: ocrStarted)) chars=\(text.count) preview=\(text.prefix(200))")
                 req = ChatRequest(
                     message: text,
                     image: nil,
@@ -52,9 +57,9 @@ class CaptureManager {
                 )
             }
 
-            jlog("[Capture] Calling gateway /chat")
+            jlog("[Capture] Calling gateway /chat preprocess_elapsed=\(Self.formatElapsed(from: totalStarted))")
             let response = try await GatewayClient.shared.chat(req)
-            jlog("[Capture] Got response: type=\(response.type) error=\(response.error ?? "none")")
+            jlog("[Capture] Got response: type=\(response.type) candidates=\(response.candidates?.count ?? 0) error=\(response.error ?? "none") total_elapsed=\(Self.formatElapsed(from: totalStarted))")
             onCaptureComplete?(response)
         } catch CaptureError.cancelled {
             jlog("[Capture] User cancelled")
@@ -135,6 +140,10 @@ class CaptureManager {
             throw CaptureError.compressionFailed
         }
         return jpeg.base64EncodedString()
+    }
+
+    private static func formatElapsed(from started: Date) -> String {
+        String(format: "%.2fs", Date().timeIntervalSince(started))
     }
 }
 

@@ -6,14 +6,15 @@ class TaskListWindowManager {
     static let shared = TaskListWindowManager()
 
     private var window: NSWindow?
+    private var outsideClickMonitor: Any?
 
     /// anchorRect: the island panel's frame in screen coordinates
     func toggle(anchorRect: NSRect) {
         if let w = window, w.isVisible {
-            w.orderOut(nil)
-            return
+            close()
+        } else {
+            show(anchorRect: anchorRect)
         }
-        show(anchorRect: anchorRect)
     }
 
     private func show(anchorRect: NSRect) {
@@ -37,14 +38,16 @@ class TaskListWindowManager {
         w.hasShadow = true
         w.collectionBehavior = [.canJoinAllSpaces, .stationary]
 
-        let hosting = NSHostingView(rootView: TaskListPanel())
+        let hosting = NSHostingView(rootView: TaskListPanel(onClose: { [weak self] in
+            self?.close()
+        }))
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: panelWidth, height: panelHeight))
         w.contentView = hosting
 
         // Dismiss when clicking outside
-        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self, weak w] _ in
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self, weak w] _ in
             guard let self, let w, w.isVisible else { return }
-            DispatchQueue.main.async { w.orderOut(nil); self.window = nil }
+            DispatchQueue.main.async { self.close() }
         }
 
         w.makeKeyAndOrderFront(nil)
@@ -55,6 +58,15 @@ class TaskListWindowManager {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
             w.animator().alphaValue = 1
+        }
+    }
+
+    func close() {
+        window?.orderOut(nil)
+        window = nil
+        if let outsideClickMonitor {
+            NSEvent.removeMonitor(outsideClickMonitor)
+            self.outsideClickMonitor = nil
         }
     }
 }

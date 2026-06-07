@@ -1,18 +1,6 @@
 import Foundation
 import Combine
 
-struct ProviderConfig: Codable {
-    var modelId: String?
-    var baseUrl: String?
-    var configured: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case modelId = "model_id"
-        case baseUrl = "base_url"
-        case configured
-    }
-}
-
 let PROVIDER_DISPLAY_NAMES: [String: String] = [
     "openai":       "OpenAI",
     "anthropic":    "Anthropic",
@@ -28,6 +16,7 @@ let PROVIDER_DISPLAY_NAMES: [String: String] = [
     "synthetic":    "Synthetic",
     "opencode_zen": "OpenCode Zen",
     "ollama":       "Ollama",
+    "mlx_local":    "MLX 本地",
     "custom":       "自定义端点",
 ]
 
@@ -52,7 +41,7 @@ class APIConfigStore: ObservableObject {
         guard let cfg = try? await GatewayClient.shared.getConfig() else { return }
         activeProviderId = cfg.activeProviderId
         activeModelId    = cfg.activeModelId
-        configurations   = cfg.providers ?? [:]
+        configurations   = cfg.providers
     }
 
     /// Send settings to Python (Python saves to ~/.jarvis/api_config.json).
@@ -60,6 +49,7 @@ class APIConfigStore: ObservableObject {
         providerId: String,
         modelId: String,
         apiKey: String = "",
+        apiKeyId: String? = nil,
         baseUrl: String? = nil,
         awsAccessKey: String? = nil,
         awsSecretKey: String? = nil,
@@ -69,16 +59,13 @@ class APIConfigStore: ObservableObject {
             providerId:   providerId,
             modelId:      modelId,
             apiKey:       apiKey,
+            apiKeyId:     apiKeyId,
             baseUrl:      baseUrl,
             awsAccessKey: awsAccessKey,
             awsSecretKey: awsSecretKey,
             region:       region
         )
         try await GatewayClient.shared.updateSettings(req)
-        activeProviderId = providerId
-        activeModelId    = modelId
-        configurations[providerId] = ProviderConfig(
-            modelId: modelId, baseUrl: baseUrl, configured: true
-        )
+        await loadFromGateway()
     }
 }

@@ -6,6 +6,7 @@ import EventKit
 struct TaskListPanel: View {
     @StateObject private var store = TaskListStore.shared
     @State private var selectedTab: Tab = .events
+    let onClose: () -> Void
 
     enum Tab { case events, reminders }
 
@@ -28,7 +29,16 @@ struct TaskListPanel: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, 14)
+
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 10)
             }
             .padding(.leading, 6)
             .padding(.top, 10)

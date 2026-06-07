@@ -8,25 +8,30 @@
 
 /* Begin PBXBuildFile section */
 		032122FB62BB99DF2B67C41C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 42C816920474B2D07CCA46B0 /* Assets.xcassets */; };
+		05E95E1FE2ED2FECB01FFD53 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0F5CBF4DEF14F4928F330257 /* UserNotifications.framework */; };
 		0619C927DA8A6DEC0267A7BF /* APIConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEDD788380DF52443DF8692 /* APIConfigStore.swift */; };
 		16D83E050E127B59E28B857F /* JarvisCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */; };
-		204EA56C182EA85E5A023DAD /* ChatRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77902DA938F1B2320153714 /* ChatRequest.swift */; };
+		1F4C256F4C149DF2CD6A2A9F /* HeartbeatManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9695BC7C1DB63DB938DDDC6E /* HeartbeatManager.swift */; };
 		29FA1BA130329E4B307C37EB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB3B936D48E3F70D3296FFBA /* SwiftUI.framework */; };
 		3BFEA2B540080BBBDA453361 /* TaskListWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADBE62D2F5A7F2D9B78578F /* TaskListWindowManager.swift */; };
+		3C2171DA82EFC98A2A32A015 /* GeneratedContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A19229CC9D12D651698E47 /* GeneratedContracts.swift */; };
 		4700108C3D2CE846ED4B5C6C /* EventKitTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC7F17CD50645E1133CA35F /* EventKitTool.swift */; };
 		506DAFA16139BEC46D0CFB0E /* IslandWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8252FEFB239CA96729762422 /* IslandWindowController.swift */; };
 		526BDF4D6BC5714809B2E937 /* JarvisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */; };
-		533B9EB601D34C4B91024D14 /* ChatResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0819919350A969D6088B8B /* ChatResponse.swift */; };
-		6011C87CF9F1B27CDABD5CC7 /* SettingsRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7858BBC214977568B88A1F72 /* SettingsRequest.swift */; };
+		528FAEF0812216BC1804AF24 /* ContractConvenience.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E858557ED852F4604BADE1 /* ContractConvenience.swift */; };
+		5BD7D1A8B40ECC2062AB7492 /* JarvisMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34954F6BEEA77BDCF6C55F8E /* JarvisMainView.swift */; };
 		6628F26BDBCFA529FF7B4F47 /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E043B34A4CA125709886D005 /* EventKit.framework */; };
 		6D9B3EF2AAE5DACA36F95EED /* CaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855105F2040B098186D04239 /* CaptureManager.swift */; };
 		6E69CF154C5B6F7E783A3C42 /* ScreenCaptureKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0B4D53AD65B421DD2327AD97 /* ScreenCaptureKit.framework */; };
 		7807D0D4FF45BF8B9B6924CF /* ConfirmationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E360B321077CE88F420BBCE2 /* ConfirmationCard.swift */; };
 		8894E6E14D51982134123495 /* LocationResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04877521BE7E118FFC90684D /* LocationResult.swift */; };
+		8A632734989BB2243E30066A /* BatchReviewWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CCD5D0C0FD5E4A10566FD06 /* BatchReviewWindowManager.swift */; };
 		94195FE597089F82A6453890 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC2935199B3509EDEC26553C /* Security.framework */; };
 		9B0E2914ED95DDFBC35AD735 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C6AADCC1C319F0FBE8B1CE77 /* MapKit.framework */; };
 		9C1D96254BB15E23E44A2886 /* GatewayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB995D8A4DFFC20D52722BC3 /* GatewayClient.swift */; };
+		9E4469D3A7450D945562AF5A /* BatchReviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 979D6724D17B511B517DFA54 /* BatchReviewPanel.swift */; };
 		B917CBA262E1035DD060FA17 /* IslandCapsuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36711C9BEB4870F367919209 /* IslandCapsuleView.swift */; };
+		C1EB027F1F262696CE6CD2D5 /* NotificationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B601F519846CDE7CAF8596 /* NotificationTool.swift */; };
 		C8394B53D9D8555F0F1E7745 /* RecognitionResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5A907E1425A49834AB790A /* RecognitionResult.swift */; };
 		C9E85AD51992D884D1C6C40A /* GatewayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC392F8BECCDFC08BF4BEDB5 /* GatewayManager.swift */; };
 		CC2360242A76906B1943FAF5 /* LocationPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */; };
@@ -49,20 +54,26 @@
 		09B8F1BE063DC5AE821E467A /* TaskListPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListPanel.swift; sourceTree = "<group>"; };
 		0B4D53AD65B421DD2327AD97 /* ScreenCaptureKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScreenCaptureKit.framework; path = System/Library/Frameworks/ScreenCaptureKit.framework; sourceTree = SDKROOT; };
 		0EC7F17CD50645E1133CA35F /* EventKitTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitTool.swift; sourceTree = "<group>"; };
+		0F5CBF4DEF14F4928F330257 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPanel.swift; sourceTree = "<group>"; };
 		2EEDD788380DF52443DF8692 /* APIConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfigStore.swift; sourceTree = "<group>"; };
 		34376B43CD025E00DF1F61B2 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
+		34954F6BEEA77BDCF6C55F8E /* JarvisMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JarvisMainView.swift; sourceTree = "<group>"; };
 		36711C9BEB4870F367919209 /* IslandCapsuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCapsuleView.swift; sourceTree = "<group>"; };
 		42C816920474B2D07CCA46B0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		63A19229CC9D12D651698E47 /* GeneratedContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedContracts.swift; sourceTree = "<group>"; };
 		6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPicker.swift; sourceTree = "<group>"; };
-		7858BBC214977568B88A1F72 /* SettingsRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRequest.swift; sourceTree = "<group>"; };
+		6CCD5D0C0FD5E4A10566FD06 /* BatchReviewWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchReviewWindowManager.swift; sourceTree = "<group>"; };
 		8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JarvisCommands.swift; sourceTree = "<group>"; };
 		8252FEFB239CA96729762422 /* IslandWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandWindowController.swift; sourceTree = "<group>"; };
+		84B601F519846CDE7CAF8596 /* NotificationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTool.swift; sourceTree = "<group>"; };
+		84E858557ED852F4604BADE1 /* ContractConvenience.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContractConvenience.swift; sourceTree = "<group>"; };
 		855105F2040B098186D04239 /* CaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureManager.swift; sourceTree = "<group>"; };
 		8FCD56DF4279749289084814 /* APISettingsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsPanel.swift; sourceTree = "<group>"; };
 		90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JarvisApp.swift; sourceTree = "<group>"; };
+		9695BC7C1DB63DB938DDDC6E /* HeartbeatManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartbeatManager.swift; sourceTree = "<group>"; };
+		979D6724D17B511B517DFA54 /* BatchReviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchReviewPanel.swift; sourceTree = "<group>"; };
 		A3268F17FB5F3213F02C5011 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
-		A77902DA938F1B2320153714 /* ChatRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRequest.swift; sourceTree = "<group>"; };
 		AC392F8BECCDFC08BF4BEDB5 /* GatewayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayManager.swift; sourceTree = "<group>"; };
 		BB3B936D48E3F70D3296FFBA /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		BB995D8A4DFFC20D52722BC3 /* GatewayClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GatewayClient.swift; sourceTree = "<group>"; };
@@ -71,7 +82,6 @@
 		C13014B148F85DD6898AA12D /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		C6487778E02B7359BCD756F0 /* IslandDropdownMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandDropdownMenu.swift; sourceTree = "<group>"; };
 		C6AADCC1C319F0FBE8B1CE77 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
-		CC0819919350A969D6088B8B /* ChatResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatResponse.swift; sourceTree = "<group>"; };
 		CD5A907E1425A49834AB790A /* RecognitionResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecognitionResult.swift; sourceTree = "<group>"; };
 		E043B34A4CA125709886D005 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
 		E360B321077CE88F420BBCE2 /* ConfirmationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmationCard.swift; sourceTree = "<group>"; };
@@ -93,6 +103,7 @@
 				9B0E2914ED95DDFBC35AD735 /* MapKit.framework in Frameworks */,
 				DA890339691DB77FC0F90F9B /* CoreLocation.framework in Frameworks */,
 				94195FE597089F82A6453890 /* Security.framework in Frameworks */,
+				05E95E1FE2ED2FECB01FFD53 /* UserNotifications.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -109,6 +120,7 @@
 				0B4D53AD65B421DD2327AD97 /* ScreenCaptureKit.framework */,
 				BC2935199B3509EDEC26553C /* Security.framework */,
 				BB3B936D48E3F70D3296FFBA /* SwiftUI.framework */,
+				0F5CBF4DEF14F4928F330257 /* UserNotifications.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -117,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				AC392F8BECCDFC08BF4BEDB5 /* GatewayManager.swift */,
+				9695BC7C1DB63DB938DDDC6E /* HeartbeatManager.swift */,
 				90D238B5CF4BD07EB47F84F0 /* JarvisApp.swift */,
 				FA13FE44FECF060B6D83CE5A /* Logger.swift */,
 			);
@@ -127,6 +140,7 @@
 			isa = PBXGroup;
 			children = (
 				BC62EAC7E7430766E5D00644 /* APISettingsWindowManager.swift */,
+				6CCD5D0C0FD5E4A10566FD06 /* BatchReviewWindowManager.swift */,
 				8102F15DDE4EBDDDCC3AFABC /* JarvisCommands.swift */,
 				FADBE62D2F5A7F2D9B78578F /* TaskListWindowManager.swift */,
 			);
@@ -144,11 +158,10 @@
 		8447A942E39174E3B9A57B4E /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				A77902DA938F1B2320153714 /* ChatRequest.swift */,
-				CC0819919350A969D6088B8B /* ChatResponse.swift */,
+				84E858557ED852F4604BADE1 /* ContractConvenience.swift */,
+				63A19229CC9D12D651698E47 /* GeneratedContracts.swift */,
 				04877521BE7E118FFC90684D /* LocationResult.swift */,
 				CD5A907E1425A49834AB790A /* RecognitionResult.swift */,
-				7858BBC214977568B88A1F72 /* SettingsRequest.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -157,11 +170,13 @@
 			isa = PBXGroup;
 			children = (
 				8FCD56DF4279749289084814 /* APISettingsPanel.swift */,
+				979D6724D17B511B517DFA54 /* BatchReviewPanel.swift */,
 				E360B321077CE88F420BBCE2 /* ConfirmationCard.swift */,
 				36711C9BEB4870F367919209 /* IslandCapsuleView.swift */,
 				C6487778E02B7359BCD756F0 /* IslandDropdownMenu.swift */,
 				2CE8524B8E98736A865EE9D7 /* IslandPanel.swift */,
 				8252FEFB239CA96729762422 /* IslandWindowController.swift */,
+				34954F6BEEA77BDCF6C55F8E /* JarvisMainView.swift */,
 				6A5B7302FB6131CBAAF55031 /* LocationPicker.swift */,
 				A3268F17FB5F3213F02C5011 /* StatusBarController.swift */,
 				09B8F1BE063DC5AE821E467A /* TaskListPanel.swift */,
@@ -207,6 +222,7 @@
 				855105F2040B098186D04239 /* CaptureManager.swift */,
 				0EC7F17CD50645E1133CA35F /* EventKitTool.swift */,
 				EFADDFF5EF2E9C9923DB8754 /* MapKitTool.swift */,
+				84B601F519846CDE7CAF8596 /* NotificationTool.swift */,
 			);
 			path = NativeActions;
 			sourceTree = "<group>";
@@ -291,25 +307,29 @@
 				0619C927DA8A6DEC0267A7BF /* APIConfigStore.swift in Sources */,
 				CDCFF324A05A0F05827E0E0E /* APISettingsPanel.swift in Sources */,
 				DAC0A1E309C69A3B401B4AB5 /* APISettingsWindowManager.swift in Sources */,
+				9E4469D3A7450D945562AF5A /* BatchReviewPanel.swift in Sources */,
+				8A632734989BB2243E30066A /* BatchReviewWindowManager.swift in Sources */,
 				6D9B3EF2AAE5DACA36F95EED /* CaptureManager.swift in Sources */,
-				204EA56C182EA85E5A023DAD /* ChatRequest.swift in Sources */,
-				533B9EB601D34C4B91024D14 /* ChatResponse.swift in Sources */,
 				7807D0D4FF45BF8B9B6924CF /* ConfirmationCard.swift in Sources */,
+				528FAEF0812216BC1804AF24 /* ContractConvenience.swift in Sources */,
 				4700108C3D2CE846ED4B5C6C /* EventKitTool.swift in Sources */,
 				9C1D96254BB15E23E44A2886 /* GatewayClient.swift in Sources */,
 				C9E85AD51992D884D1C6C40A /* GatewayManager.swift in Sources */,
+				3C2171DA82EFC98A2A32A015 /* GeneratedContracts.swift in Sources */,
+				1F4C256F4C149DF2CD6A2A9F /* HeartbeatManager.swift in Sources */,
 				B917CBA262E1035DD060FA17 /* IslandCapsuleView.swift in Sources */,
 				F532541C150F58CB9DFBAC72 /* IslandDropdownMenu.swift in Sources */,
 				D216FA92EAB2E318278188A4 /* IslandPanel.swift in Sources */,
 				506DAFA16139BEC46D0CFB0E /* IslandWindowController.swift in Sources */,
 				526BDF4D6BC5714809B2E937 /* JarvisApp.swift in Sources */,
 				16D83E050E127B59E28B857F /* JarvisCommands.swift in Sources */,
+				5BD7D1A8B40ECC2062AB7492 /* JarvisMainView.swift in Sources */,
 				CC2360242A76906B1943FAF5 /* LocationPicker.swift in Sources */,
 				8894E6E14D51982134123495 /* LocationResult.swift in Sources */,
 				E2E7275A17AADCD4753022B9 /* Logger.swift in Sources */,
 				EFC129CFDAE671D78B59201B /* MapKitTool.swift in Sources */,
+				C1EB027F1F262696CE6CD2D5 /* NotificationTool.swift in Sources */,
 				C8394B53D9D8555F0F1E7745 /* RecognitionResult.swift in Sources */,
-				6011C87CF9F1B27CDABD5CC7 /* SettingsRequest.swift in Sources */,
 				E648B0463FCECB1AED274277 /* StatusBarController.swift in Sources */,
 				D95C2673F867599C8694556C /* TaskListPanel.swift in Sources */,
 				DB80DF5A7F1960461F91D710 /* TaskListStore.swift in Sources */,

@@ -17,6 +17,17 @@ def create_provider(provider_id: str, config: dict) -> BaseProvider:
         url = base_url or "http://localhost:11434"
         return OllamaProvider(base_url=url, model=model or "llama3.2")
 
+    if provider_id == "mlx_local":
+        from .mlx_local import MLXLocalProvider
+        model_path = config.get("model_path") or config.get("local_path")
+        if not model_path:
+            raise ValueError("Missing MLX local model path")
+        return MLXLocalProvider(
+            model_path=model_path,
+            model_id=model or config.get("model_id", ""),
+            display_name=config.get("display_name"),
+        )
+
     if provider_id == "bedrock":
         # Bedrock needs boto3 — lazy import to avoid hard dependency
         from .bedrock import BedrockProvider
@@ -32,4 +43,9 @@ def create_provider(provider_id: str, config: dict) -> BaseProvider:
     if not url:
         raise ValueError(f"Unknown provider or missing base_url: {provider_id}")
 
-    return OpenAICompatProvider(api_key=api_key, base_url=url, model=model)
+    return OpenAICompatProvider(
+        api_key=api_key,
+        base_url=url,
+        model=model,
+        supports_required_tool_choice=cfg.get("supports_required_tool_choice", True),
+    )

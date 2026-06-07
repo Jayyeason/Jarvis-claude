@@ -1,4 +1,4 @@
-.PHONY: build run dev python clean
+.PHONY: build run stop dev python clean
 
 SCHEME   = Jarvis
 PROJECT  = Jarvis/Jarvis.xcodeproj
@@ -7,17 +7,23 @@ BUILD_DIR = build/Jarvis.app
 # ── Swift ─────────────────────────────────────────────────────────────────────
 
 build:
+	python3 scripts/generate_swift_contracts.py
 	cd Jarvis && xcodegen generate --quiet
+	mkdir -p build
 	xcodebuild \
 	  -project $(PROJECT) \
 	  -scheme $(SCHEME) \
 	  -configuration Debug \
 	  -derivedDataPath build/DerivedData \
 	  CODE_SIGNING_ALLOWED=NO \
-	  | grep -E "^(Build|error:|warning:|Compiling|Linking)" || true
+	  > build/xcodebuild.log 2>&1
+	@grep -E "^(\*\* BUILD|Build|error:|warning:|Compiling|Linking)" build/xcodebuild.log || true
 
 run: build
 	open build/DerivedData/Build/Products/Debug/Jarvis.app
+
+stop:
+	scripts/stop_jarvis.sh
 
 # ── Python ────────────────────────────────────────────────────────────────────
 

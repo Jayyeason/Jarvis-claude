@@ -32,12 +32,13 @@ targets:
     info:
       path: Resources/Info.plist
       properties:
-        LSUIElement: true
+        LSUIElement: false
         LSMinimumSystemVersion: "14.0"
         NSCalendarsUsageDescription: "Jarvis 需要访问日历来添加识别到的日程。"
         NSRemindersUsageDescription: "Jarvis 需要访问提醒事项来添加识别到的任务。"
         NSScreenCaptureUsageDescription: "Jarvis 需要截图权限来识别屏幕内容。"
         NSLocationWhenInUseUsageDescription: "Jarvis 使用位置来搜索附近地点。"
+        NSUserNotificationsUsageDescription: "Jarvis 需要发送通知来主动提醒即将开始的日程和待办。"
         NSHumanReadableCopyright: "Copyright © 2026 Jarvis. All rights reserved."
     entitlements:
       path: Resources/Jarvis.entitlements
@@ -63,3 +64,4 @@ targets:
       - sdk: MapKit.framework
       - sdk: CoreLocation.framework
       - sdk: Security.framework
+      - sdk: UserNotifications.framework

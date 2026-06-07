@@ -15,6 +15,10 @@ struct JarvisCommands: Commands {
         }
 
         CommandMenu("模型") {
+            Button("管理端侧模型...") {
+                ModelManagerWindowManager.shared.open()
+            }
+
             Button("配置云端 API...") {
                 APISettingsWindowManager.shared.open()
             }

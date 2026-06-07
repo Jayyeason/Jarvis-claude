@@ -47,7 +47,9 @@ class EventKitTool {
             throw EventKitError.noCalendar
         }
 
-        let startDate = result.startTime ?? Date()
+        guard let startDate = result.startTime else {
+            throw EventKitError.missingStartTime
+        }
         var endDate = result.endTime ?? startDate.addingTimeInterval(3600)
         if result.isAllDay && endDate <= startDate {
             endDate = Calendar.current.date(byAdding: .day, value: 1, to: startDate) ?? startDate.addingTimeInterval(86400)
@@ -83,6 +85,39 @@ class EventKitTool {
         }
 
         try store.save(event, span: .thisEvent)
+    }
+
+    func checkConflicts(start: Date, end: Date) async throws -> [ConflictInfo] {
+        try await requestEventAccess()
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        return store.events(matching: predicate)
+            .filter { event in
+                guard !event.isAllDay else { return false }
+                return event.startDate < end && event.endDate > start
+            }
+            .map { event in
+                ConflictInfo(
+                    id: event.eventIdentifier ?? UUID().uuidString,
+                    title: event.title ?? "无标题",
+                    startTime: isoString(event.startDate),
+                    endTime: isoString(event.endDate),
+                    calendarName: event.calendar?.title
+                )
+            }
+    }
+
+    func deleteEvents(ids: [String]) async throws {
+        try await requestEventAccess()
+        var deletedAny = false
+        for id in Set(ids) {
+            guard let event = store.event(withIdentifier: id) else { continue }
+            try store.remove(event, span: .thisEvent, commit: false)
+            deletedAny = true
+        }
+        guard deletedAny else {
+            throw EventKitError.eventNotFound
+        }
+        try store.commit()
     }
 
     func createReminder(result: ReminderRecognition, selectedLocation: LocationResult? = nil) async throws {
@@ -201,18 +236,28 @@ class EventKitTool {
         default: return nil
         }
     }
+
+    private func isoString(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: date)
+    }
 }
 
 enum EventKitError: Error, LocalizedError {
     case accessDenied
     case noCalendar
     case noReminderCalendar
+    case missingStartTime
+    case eventNotFound
 
     var errorDescription: String? {
         switch self {
         case .accessDenied: return "日历/提醒事项访问被拒绝，请在系统设置中授权"
         case .noCalendar: return "找不到可用的日历，请在日历 app 中创建一个"
         case .noReminderCalendar: return "找不到默认提醒事项列表"
+        case .missingStartTime: return "日程缺少开始时间，请补充后再写入"
+        case .eventNotFound: return "找不到要替换的旧行程"
         }
     }
 }

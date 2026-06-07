@@ -24,7 +24,8 @@ PROVIDER_CONFIGS = {
         "display_name": "DeepSeek",
         "base_url": "https://api.deepseek.com/v1",
         "fields": ["api_key"],
-        "preset_models": ["deepseek-chat", "deepseek-reasoner"],
+        "preset_models": ["deepseek-v4-flash", "deepseek-v4-pro"],
+        "supports_required_tool_choice": False,
     },
     "openrouter": {
         "display_name": "OpenRouter",

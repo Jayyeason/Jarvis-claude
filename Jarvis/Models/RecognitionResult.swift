@@ -80,20 +80,30 @@ enum RecognitionResult {
         }
     }
 
-    static func from(_ response: ChatResponse) -> RecognitionResult {
+    static func from(_ response: AgentResponse) -> RecognitionResult {
         switch response.type {
-        case "calendar":
-            guard let payload = response.calendar else { return .error("missing_calendar_payload") }
-            return .calendar(CalendarRecognition.from(payload))
-        case "reminder":
-            guard let payload = response.reminder else { return .error("missing_reminder_payload") }
-            return .reminder(ReminderRecognition.from(payload))
+        case "batch":
+            guard let first = response.candidates?.first else { return .none(reply: response.reply) }
+            return from(first)
         case "none":
             return .none(reply: response.reply)
         case "error":
             return .error(response.error ?? response.reply)
         default:
             return .error("unknown_response_type:\(response.type)")
+        }
+    }
+
+    static func from(_ candidate: RecognitionCandidate) -> RecognitionResult {
+        switch candidate.kind {
+        case "calendar":
+            guard let payload = candidate.calendar else { return .error("missing_calendar_payload") }
+            return .calendar(CalendarRecognition.from(payload))
+        case "reminder":
+            guard let payload = candidate.reminder else { return .error("missing_reminder_payload") }
+            return .reminder(ReminderRecognition.from(payload))
+        default:
+            return .error("unknown_candidate_kind:\(candidate.kind)")
         }
     }
 
@@ -134,7 +144,7 @@ struct CalendarRecognition {
     var calendarName: String?
     var url: URL?
 
-    static func from(_ response: CalendarResponse) -> CalendarRecognition {
+    static func from(_ response: CalendarPayload) -> CalendarRecognition {
         CalendarRecognition(
             title: response.title ?? "新日程",
             notes: response.notes,
@@ -165,7 +175,7 @@ struct ReminderRecognition {
     var flagged: Bool
     var url: URL?
 
-    static func from(_ response: ReminderResponse) -> ReminderRecognition {
+    static func from(_ response: ReminderPayload) -> ReminderRecognition {
         ReminderRecognition(
             title: response.title ?? "新提醒",
             notes: response.notes,
@@ -189,7 +199,7 @@ struct RecurrenceRule {
     var endDate: Date?
     var occurrenceCount: Int?
 
-    static func from(_ response: RecurrenceResponse) -> RecurrenceRule {
+    static func from(_ response: RecurrencePayload) -> RecurrenceRule {
         RecurrenceRule(
             frequency: response.frequency,
             interval: response.interval ?? 1,

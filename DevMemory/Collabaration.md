@@ -181,4 +181,154 @@ If any file is missing, create it from the templates below before implementation
 - Files: Jarvis/Models/ChatResponse.swift
 - Decision: App now requires new type + calendar/reminder response schema only
 - Next: Launch fresh app with make run and retest OCR/text-model path
+### 2026-06-01 18:42:59 +0800 | milestone
+- Summary: Inspected repository to summarize Jarvis purpose, architecture, implemented MVP features, and current gaps
+- Files: README.md,docs/jarvis_mvp.md,docs/jarvis_dev_doc.md,Jarvis/App/JarvisApp.swift,Jarvis/NativeActions/CaptureManager.swift,Python/gateway.py
+- Decision: None
+- Next: None
+### 2026-06-01 18:55:38 +0800 | milestone
+- Summary: Implemented MVP agent stabilization: Python result validation/retry, visible no-event/error feedback, duration selection, and EventKit missing-start guard
+- Files: Python/agent/validator.py,Python/agent/agent.py,Python/tests/test_agent_components.py,Jarvis/UI/IslandCapsuleView.swift,Jarvis/UI/IslandWindowController.swift,Jarvis/App/JarvisApp.swift,Jarvis/NativeActions/EventKitTool.swift
+- Decision: Keep current single-turn extraction architecture; defer Keychain migration and full ReAct/Heartbeat work
+- Next: Manual runtime test with a configured provider for no-event, needs-duration calendar, and normal reminder flows
+### 2026-06-01 19:46:45 +0800 | milestone
+- Summary: Implemented MLX local model management and model-source switching: gateway local model registry/download/load APIs, Swift model manager window/status menu entries, and Dynamic Island source switcher.
+- Files: Python/gateway.py,Python/providers/local_model_registry.py,Python/providers/mlx_local.py,Python/providers/provider_factory.py,Python/requirements.txt,Python/tests/test_agent_components.py,Jarvis/Gateway/GatewayClient.swift,Jarvis/UI/APISettingsPanel.swift,Jarvis/UI/IslandCapsuleView.swift,Jarvis/UI/IslandDropdownMenu.swift,Jarvis/Commands/APISettingsWindowManager.swift,Jarvis/Commands/JarvisCommands.swift,Jarvis/UI/StatusBarController.swift,Jarvis/App/JarvisApp.swift,Jarvis/Store/APIConfigStore.swift
+- Decision: Cloud API config remains in ~/.jarvis/api_config.json; local MLX models live under ~/Library/Application Support/Jarvis/Models; Dynamic Island only switches configured cloud sources or installed MLX sources.
+- Next: Improve long-running download progress granularity and consider Keychain migration for API secrets.
+### 2026-06-04 14:05:56 +0800 | milestone
+- Summary: Added multi API-key management for cloud providers with masked key display and active key switching
+- Files: Python/gateway.py,Python/tests/test_agent_components.py,Jarvis/Models/SettingsRequest.swift,Jarvis/Gateway/GatewayClient.swift,Jarvis/Store/APIConfigStore.swift,Jarvis/UI/APISettingsPanel.swift
+- Decision: Keep raw keys in existing ~/.jarvis/api_config.json storage for compatibility; expose only masked key metadata through /config and switch by api_key_id
+- Next: Manual runtime test adding and switching two DeepSeek keys from API settings
+### 2026-06-04 14:13:13 +0800 | milestone
+- Summary: Added stop script and make stop target for terminating Jarvis app, gateway.py, and port 8765 listeners
+- Files: scripts/stop_jarvis.sh,Makefile
+- Decision: Use graceful TERM with timed KILL fallback; JARVIS_GATEWAY_PORT and JARVIS_STOP_TIMEOUT allow overrides
+- Next: Use make stop before make run when restarting local development
+### 2026-06-04 14:40:11 +0800 | milestone
+- Summary: Switched Jarvis from status-bar agent mode to regular macOS app mode with left-side app commands
+- Files: Jarvis/App/JarvisApp.swift,Jarvis/project.yml,Jarvis/Resources/Info.plist
+- Decision: Disable LSUIElement and use NSApp regular activation; do not instantiate StatusBarController so the right-side menu bar icon is removed
+- Next: Restart with make stop then make run and verify Jarvis / 操作 / 模型 appears when Jarvis is active
+### 2026-06-04 15:01:10 +0800 | milestone
+- Summary: Added regular Jarvis main window and delayed activation so Jarvis becomes frontmost and shows left-side app menus
+- Files: Jarvis/App/JarvisApp.swift,Jarvis/UI/JarvisMainView.swift
+- Decision: Regular app mode needs a visible key window; launch now makes the main window key and activates Jarvis after window creation
+- Next: Use make stop && make run and verify Jarvis / 操作 / 模型 in the macOS menu bar
+### 2026-06-04 15:04:15 +0800 | milestone
+- Summary: Made Jarvis floating island clicks activate the regular app so left-side macOS menus appear
+- Files: Jarvis/UI/IslandWindowController.swift
+- Decision: Keep island as nonactivating floating panel for layout, but intercept mouse-down events in sendEvent to call NSApp.activate
+- Next: Manually click the island after focusing another app and verify Jarvis / 操作 / 模型 appears
+### 2026-06-04 16:38:45 +0800 | milestone
+- Summary: Adjusted task list popover to appear below the current island panel and added a close button
+- Files: Jarvis/App/JarvisApp.swift,Jarvis/UI/IslandWindowController.swift,Jarvis/Commands/TaskListWindowManager.swift,Jarvis/UI/TaskListPanel.swift
+- Decision: Anchor the schedule/reminder panel to IslandWindowController.currentPanelFrame instead of notchRect so it does not overlap the expanded island
+- Next: Manual click test: open 日程/提醒 panel from island, confirm it appears below and closes via xmark
+### 2026-06-04 16:49:30 +0800 | milestone
+- Summary: Changed API key management UI from dropdown picker to visible masked key list with per-key switch buttons
+- Files: Jarvis/UI/APISettingsPanel.swift
+- Decision: Show all saved provider API keys inline; active key is marked current and inactive rows expose direct switch action
+- Next: Manual API settings check with multiple DeepSeek keys
+### 2026-06-06 14:35:57 +0800 | milestone
+- Summary: Added generated contract pipeline and Python batch AgentResponse DTOs with Memory files and HeartbeatEngine endpoints
+- Files: Python/contracts.py,scripts/generate_swift_contracts.py,Jarvis/Models/GeneratedContracts.swift,Python/gateway.py,Python/agent/tools.py,Python/agent/result.py,Python/agent/validator.py,Python/agent/prompts.py,Python/agent/agent.py,Python/agent/memory.py,Python/agent/heartbeat.py,Python/providers/mlx_local.py,Makefile,Python/requirements.txt
+- Decision: Use Python Pydantic contracts as source for new chat/heartbeat/memory DTOs; preserve old API settings models for now
+- Next: Wire Swift to AgentResponse, add batch review UI, conflict checks, heartbeat notifications
+### 2026-06-06 14:55:42 +0800 | milestone
+- Summary: Implemented unified Python-to-Swift contracts for settings/model DTOs, added agent session follow-up handling, exposed memory feedback, and wired batch review write/skip feedback.
+- Files: Python/contracts.py,Python/gateway.py,Python/agent/agent.py,Python/tests/test_agent_components.py,Jarvis/Models/GeneratedContracts.swift,Jarvis/Models/ContractConvenience.swift,Jarvis/Gateway/GatewayClient.swift,Jarvis/Store/APIConfigStore.swift,Jarvis/UI/BatchReviewPanel.swift,Makefile
+- Decision: Python/contracts.py is the source of truth for Swift API DTOs; Swift UI-only protocol/computed helpers live in ContractConvenience.swift.
+- Next: Run make build after contract changes; consider adding a visible chat input for follow-up clarification beyond the batch editor.
+### 2026-06-06 15:56:22 +0800 | milestone
+- Summary: Fixed DeepSeek invalid model error by changing saved local config from gpt-4o to deepseek-v4-flash and updating DeepSeek preset models to deepseek-v4-flash/deepseek-v4-pro.
+- Files: Python/providers/provider_configs.py,Python/gateway.py,Jarvis/UI/APISettingsPanel.swift,/Users/kk/.jarvis/api_config.json
+- Decision: Use deepseek-v4-flash as the default DeepSeek model for fast validation; expose deepseek-v4-pro as the higher quality option.
+- Next: Restart with make stop && make run, then test screenshot recognition again.
+### 2026-06-06 16:56:43 +0800 | milestone
+- Summary: Updated cloud API settings UI so model ID is always editable alongside API key/base URL, with preset/verified models offered as menu choices without overwriting typed IDs.
+- Files: Jarvis/UI/APISettingsPanel.swift
+- Decision: Model ID is now a first-class editable setting; verification preserves the typed model instead of selecting the first returned model.
+- Next: Restart with make stop && make run and configure DeepSeek/OpenAI by entering API key plus model ID.
+### 2026-06-06 17:06:05 +0800 | milestone
+- Summary: Changed DeepSeek tool_choice compatibility to code-level error handling: OpenAI-compatible provider retries without tool_choice when required tool_choice is rejected.
+- Files: Python/providers/openai_compat.py,Python/agent/prompts.py,Python/tests/test_agent_components.py
+- Decision: Do not rely on prompt fallback for unsupported tool_choice; handle provider 400 errors by changing request parameters and retrying.
+- Next: Restart Jarvis and retest DeepSeek screenshot recognition.
+### 2026-06-06 18:09:23 +0800 | milestone
+- Summary: Implemented stacked sequential batch review UI: each recognized calendar/reminder is handled as an independent card, write/skip advances automatically, and island dropdown animations were smoothed.
+- Files: Jarvis/UI/BatchReviewPanel.swift,Jarvis/UI/IslandCapsuleView.swift,Jarvis/UI/IslandWindowController.swift,Jarvis/Commands/BatchReviewWindowManager.swift
+- Decision: Batch review uses a confirmation-window deck, not inline island editing; write/skip auto-advances and bulk write is removed.
+- Next: Manual-run Jarvis and test multi-candidate screenshot flow plus island appear/dismiss animation.
+### 2026-06-06 18:21:46 +0800 | milestone
+- Summary: Changed post-recognition UX: batch results now auto-open the stacked confirmation window, island only shows compact 'recognized N items' status, and confirmation window was reduced to 640x500.
+- Files: Jarvis/App/JarvisApp.swift,Jarvis/UI/IslandWindowController.swift,Jarvis/UI/IslandCapsuleView.swift,Jarvis/Commands/BatchReviewWindowManager.swift,Jarvis/UI/BatchReviewPanel.swift
+- Decision: Batch results no longer use the island dropdown summary; none/error results still use the island dropdown. Conflict handling remains warn-and-confirm-overwrite.
+- Next: Manual test capture flow for batch, none/error, and calendar conflict cases.
+### 2026-06-06 23:31:13 +0800 | milestone
+- Summary: Reduced slow recognition retries: DeepSeek skips required tool_choice and date-only timed calendar candidates become needs_input instead of validation retries.
+- Files: Python/providers/openai_compat.py,Python/providers/provider_configs.py,Python/providers/provider_factory.py,Python/agent/validator.py,Python/tests/test_agent_components.py
+- Decision: DeepSeek should not send tool_choice=required; recoverable missing time stays in batch review as needs_input.
+- Next: Restart Jarvis and test screenshot recognition with DeepSeek v4-flash/pro; consider switching active model to v4-flash for lower latency.
+### 2026-06-06 23:31:36 +0800 | milestone
+- Summary: Validated retry-reduction changes with Python unit tests and make build.
+- Files: DevMemory/Collabaration.md,Jarvis/Models/GeneratedContracts.swift,Jarvis/Jarvis.xcodeproj/project.pbxproj,Python/providers/openai_compat.py,Python/providers/provider_configs.py,Python/providers/provider_factory.py,Python/agent/validator.py,Python/tests/test_agent_components.py
+- Decision: Recognition speed bottleneck remains cloud LLM latency; current code now avoids avoidable DeepSeek/tool_choice and missing-time validation retries.
+- Next: User can restart with make stop && make run and compare /chat elapsed logs; switch active DeepSeek model to deepseek-v4-flash for faster tests.
+### 2026-06-07 00:03:27 +0800 | milestone
+- Summary: Made recoverable missing schedule fields explicit in batch review UI: date-only calendar candidates prompt for start time/duration and cannot be written until missing fields are resolved.
+- Files: Jarvis/UI/BatchReviewPanel.swift,DevMemory/Collabaration.md
+- Decision: Missing date/time detail should be handled through user completion in review flow, not LLM validation retry.
+- Next: Restart Jarvis and test date-only OCR text; card should show 待补充 and clear fields after selecting time/duration.
+### 2026-06-07 00:27:07 +0800 | milestone
+- Summary: Implemented right-docked stacked batch queue: LLM follow-up input per candidate, auto-write after completion, conflict pause with selected replacement, and EventKit deleteEvents.
+- Files: Jarvis/UI/BatchReviewPanel.swift,Jarvis/Commands/BatchReviewWindowManager.swift,Jarvis/NativeActions/EventKitTool.swift,Python/agent/agent.py,Python/tests/test_agent_components.py
+- Decision: Field completion uses LLM follow-up scoped to selected_candidate_ids; completed current item auto-writes unless conflicts require user action.
+- Next: Restart Jarvis with make stop && make run and test screenshot recognition with multiple events, missing time, and conflict replacement.
+### 2026-06-07 00:43:55 +0800 | milestone
+- Summary: Added prompt examples for calendar vs reminder classification, especially date-only reminders like 明天记得交电费 requiring time follow-up; memory prompt now treats reminder due time as learned only when explicit.
+- Files: Python/agent/prompts.py,Python/agent/memory.py,Python/tests/test_agent_components.py
+- Decision: Date-only or fuzzy-time reminders should set missing_fields time unless stable user memory explicitly supplies a reminder habit; template defaults are not learned preferences.
+- Next: Restart Python gateway/app and test screenshot/text reminder flow.
+### 2026-06-07 00:56:36 +0800 | milestone
+- Summary: Improved batch review card presentation and added capture/OCR/LLM timing logs
+- Files: Jarvis/UI/BatchReviewPanel.swift,Jarvis/Commands/BatchReviewWindowManager.swift,Jarvis/NativeActions/CaptureManager.swift
+- Decision: Keep OCR accuracy mode unchanged; add segmented timing first because observed latency is dominated by cloud LLM completion
+- Next: Restart Jarvis and compare Capture OCR elapsed vs GatewayClient /chat elapsed in .logs/app.log
+### 2026-06-07 01:00:53 +0800 | milestone
+- Summary: Updated island model switcher to show full model IDs without truncation
+- Files: Jarvis/UI/IslandCapsuleView.swift,Jarvis/UI/IslandDropdownMenu.swift
+- Decision: Model switch menu titles should use raw modelId; provider/capability details move to subtitle and long text wraps
+- Next: Restart Jarvis and verify long cloud/local model IDs render fully in the island model menu
+### 2026-06-07 01:26:31 +0800 | milestone
+- Summary: Implemented per-event isolated follow-up and dialog-style batch review confirmation
+- Files: Python/contracts.py,Python/agent/agent.py,Python/agent/validator.py,Python/agent/tools.py,Python/agent/result.py,Python/agent/prompts.py,Python/providers/mlx_local.py,Python/tests/test_agent_components.py,Jarvis/Models/GeneratedContracts.swift,Jarvis/UI/BatchReviewPanel.swift
+- Decision: Use LLM-provided clarification_question with validator fallback; ready events require explicit user write confirmation
+- Next: Restart Jarvis and manually test multi-event screenshot with missing time/duration
+### 2026-06-07 01:49:40 +0800 | milestone
+- Summary: Redesigned batch review as stacked event cards and improved detail time editors
+- Files: Jarvis/UI/BatchReviewPanel.swift
+- Decision: Remove the visible queue header; keep sequential queue behavior with full-card stacked previews and reusable DateTimeEditRow controls
+- Next: Restart Jarvis and manually verify multi-event stacked card transitions plus expanded detail date/time editing
+### 2026-06-07 01:55:25 +0800 | milestone
+- Summary: Removed batch follow-up input placeholder and confirmed EventKit write target behavior
+- Files: Jarvis/UI/BatchReviewPanel.swift,Jarvis/NativeActions/EventKitTool.swift
+- Decision: Jarvis does not write tags; calendar writes use model calendar_name or EventKit default new-event calendar, reminders use list_name default 提醒事项 then EventKit default reminders list
+- Next: Consider adding explicit calendar/reminder list selector if users need to avoid system default targets like 生日
+### 2026-06-07 02:05:27 +0800 | milestone
+- Summary: Refined batch review card window and prompt time baseline
+- Files: Python/agent/prompts.py,Python/tests/test_agent_components.py,Jarvis/Commands/BatchReviewWindowManager.swift,Jarvis/UI/BatchReviewPanel.swift
+- Decision: Prompt current_time now includes local timezone offset; batch review uses a keyable borderless transparent window and hides missing_fields from the follow-up conversation UI
+- Next: Restart Jarvis and manually verify compact stacked cards plus follow-up input focus
+### 2026-06-07 02:12:25 +0800 | milestone
+- Summary: Added always-visible event information summary to batch review cards
+- Files: Jarvis/UI/BatchReviewPanel.swift
+- Decision: Show read-only event details in the card body for both needs_input and ready states; keep edit details only for modifications
+- Next: Restart Jarvis and manually verify ready and needs-input cards show final/known write information without opening details
+### 2026-06-07 13:39:36 +0800 | milestone
+- Summary: Removed the write-target calendar row from the batch review event summary and verified the build.
+- Files: Jarvis/UI/BatchReviewPanel.swift
+- Decision: Do not show the target Calendar field in event cards; keep event summary focused on time, location, alert and notes.
+- Next: Continue optimizing recognition latency; recent logs show model /chat dominates rather than OCR.
 

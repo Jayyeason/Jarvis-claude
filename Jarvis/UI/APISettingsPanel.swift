@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // ── Provider metadata ─────────────────────────────────────────────────────────
 
@@ -16,7 +17,7 @@ private let allProviders: [ProviderInfo] = [
     .init(id: "openai",       displayName: "OpenAI",           section: "主流云端",   fields: [.apiKey],                                    presetModels: ["gpt-4o", "gpt-4o-mini"]),
     .init(id: "anthropic",    displayName: "Anthropic",         section: "主流云端",   fields: [.apiKey],                                    presetModels: ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-6"]),
     .init(id: "google",       displayName: "Google Gemini",     section: "主流云端",   fields: [.apiKey],                                    presetModels: ["gemini-2.0-flash", "gemini-1.5-pro"]),
-    .init(id: "deepseek",     displayName: "DeepSeek",          section: "主流云端",   fields: [.apiKey],                                    presetModels: ["deepseek-chat", "deepseek-reasoner"]),
+    .init(id: "deepseek",     displayName: "DeepSeek",          section: "主流云端",   fields: [.apiKey],                                    presetModels: ["deepseek-v4-flash", "deepseek-v4-pro"]),
     .init(id: "openrouter",   displayName: "OpenRouter",        section: "主流云端",   fields: [.apiKey],                                    presetModels: []),
     .init(id: "moonshot",     displayName: "Moonshot（月之暗面）", section: "国内云端", fields: [.apiKey],                                    presetModels: ["moonshot-v1-8k", "moonshot-v1-32k"]),
     .init(id: "minimax",      displayName: "MiniMax",           section: "国内云端",   fields: [.apiKey],                                    presetModels: ["MiniMax-Text-01"]),
@@ -51,9 +52,9 @@ struct APISettingsPanel: View {
                 provider: selectedProvider,
                 isConfigured: configStore.configurations[selectedProviderId]?.configured ?? false
             )
-            .frame(minWidth: 420)
+            .frame(minWidth: 460)
         }
-        .frame(width: 620, height: 460)
+        .frame(width: 680, height: 520)
     }
 
     private var providerList: some View {
@@ -91,6 +92,7 @@ private struct ProviderConfigForm: View {
     @ObservedObject var configStore = APIConfigStore.shared
 
     @State private var apiKey: String = ""
+    @State private var selectedApiKeyId: String = ""
     @State private var baseUrl: String = ""
     @State private var awsAccessKey: String = ""
     @State private var awsSecretKey: String = ""
@@ -120,6 +122,14 @@ private struct ProviderConfigForm: View {
         }
     }
 
+    private var providerConfig: ProviderConfig? {
+        configStore.configurations[provider.id]
+    }
+
+    private var savedApiKeys: [StoredAPIKey] {
+        providerConfig?.apiKeys ?? []
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -142,18 +152,40 @@ private struct ProviderConfigForm: View {
                 // Fields
                 if provider.fields.contains(.apiKey) {
                     fieldSection("API Key") {
-                        HStack {
-                            if showAPIKey {
-                                TextField("sk-...", text: $apiKey)
-                                    .textFieldStyle(.roundedBorder)
-                            } else {
-                                SecureField("sk-...", text: $apiKey)
-                                    .textFieldStyle(.roundedBorder)
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !savedApiKeys.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("已保存 Key")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.secondary)
+
+                                    VStack(spacing: 6) {
+                                        ForEach(savedApiKeys) { key in
+                                            savedApiKeyRow(key)
+                                        }
+                                    }
+                                }
                             }
-                            Button { showAPIKey.toggle() } label: {
-                                Image(systemName: showAPIKey ? "eye.slash" : "eye")
+
+                            HStack {
+                                if showAPIKey {
+                                    TextField(savedApiKeys.isEmpty ? "sk-..." : "输入新的 API Key", text: $apiKey)
+                                        .textFieldStyle(.roundedBorder)
+                                } else {
+                                    SecureField(savedApiKeys.isEmpty ? "sk-..." : "输入新的 API Key", text: $apiKey)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+                                Button { showAPIKey.toggle() } label: {
+                                    Image(systemName: showAPIKey ? "eye.slash" : "eye")
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
+
+                            if !savedApiKeys.isEmpty {
+                                Text("输入新 Key 会新增保存；留空则使用当前 Key。")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
@@ -180,39 +212,26 @@ private struct ProviderConfigForm: View {
                     }
                 }
 
+                modelIdSection
+
                 // Actions
                 HStack(spacing: 12) {
-                    Button("保存并验证") {
+                    Button("验证") {
                         Task { await saveAndVerify() }
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(isVerifying || primaryFieldEmpty)
 
+                    Button("使用此配置") {
+                        Task { await activateProvider() }
+                    }
+                    .disabled(primaryFieldEmpty || isSaving)
+
                     if isVerifying {
                         ProgressView().scaleEffect(0.8)
                     }
-                }
-
-                // Model selection (after verify)
-                if !availableModels.isEmpty {
-                    Divider()
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("可用模型")
-                            .font(.system(size: 13, weight: .semibold))
-
-                        Picker("选择模型", selection: $selectedModel) {
-                            ForEach(availableModels, id: \.self) { m in
-                                Text(m).tag(m)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: 300)
-
-                        Button("使用此配置") {
-                            Task { await activateProvider() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(selectedModel.isEmpty || isSaving)
+                    if isSaving {
+                        ProgressView().scaleEffect(0.8)
                     }
                 }
 
@@ -232,32 +251,75 @@ private struct ProviderConfigForm: View {
         }
         .onAppear { loadSavedValues() }
         .onChange(of: provider.id) { _ in loadSavedValues() }
+        .onReceive(configStore.$configurations) { _ in syncSelectedApiKeyIfNeeded() }
     }
 
     private var primaryFieldEmpty: Bool {
-        if provider.fields.contains(.apiKey) && apiKey.isEmpty { return true }
+        if provider.fields.contains(.apiKey)
+            && apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && selectedApiKeyId.isEmpty { return true }
         if provider.id == "ollama" && baseUrl.isEmpty { return true }
         if provider.fields.contains(.awsAccessKey) && awsAccessKey.isEmpty { return true }
+        if selectedModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
         return false
     }
 
     private func loadSavedValues() {
         apiKey = ""  // never pre-fill from memory (stored in Python)
-        baseUrl = configStore.configurations[provider.id]?.baseUrl ?? ""
+        selectedApiKeyId = providerConfig?.activeApiKeyId ?? savedApiKeys.first?.id ?? ""
+        baseUrl = providerConfig?.baseUrl ?? ""
         availableModels = []
-        selectedModel = configStore.configurations[provider.id]?.modelId ?? provider.presetModels.first ?? ""
+        selectedModel = providerConfig?.modelId ?? provider.presetModels.first ?? ""
         verifyStatus = isConfigured ? .success : .idle
+    }
+
+    private func syncSelectedApiKeyIfNeeded() {
+        let ids = Set(savedApiKeys.map(\.id))
+        if selectedApiKeyId.isEmpty || !ids.contains(selectedApiKeyId) {
+            selectedApiKeyId = providerConfig?.activeApiKeyId ?? savedApiKeys.first?.id ?? ""
+        }
+    }
+
+    private var modelOptions: [String] {
+        unique(provider.presetModels + availableModels)
+    }
+
+    private var modelPlaceholder: String {
+        provider.presetModels.first ?? "model-id"
+    }
+
+    private var modelIdSection: some View {
+        fieldSection("模型 ID") {
+            HStack(spacing: 8) {
+                TextField(modelPlaceholder, text: $selectedModel)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13, design: .monospaced))
+
+                if !modelOptions.isEmpty {
+                    Menu {
+                        ForEach(modelOptions, id: \.self) { model in
+                            Button(model) { selectedModel = model }
+                        }
+                    } label: {
+                        Label("模型", systemImage: "list.bullet")
+                    }
+                    .menuStyle(.button)
+                }
+            }
+        }
     }
 
     private func saveAndVerify() async {
         isVerifying = true
         verifyStatus = .idle
+        let trimmedModel = selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let req = VerifyRequest(
             providerId: provider.id,
             apiKey: apiKey,
+            apiKeyId: apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nonEmpty(selectedApiKeyId) : nil,
             baseUrl: baseUrl.isEmpty ? nil : baseUrl,
-            modelId: provider.presetModels.first ?? "",
+            modelId: trimmedModel,
             awsAccessKey: awsAccessKey.isEmpty ? nil : awsAccessKey,
             awsSecretKey: awsSecretKey.isEmpty ? nil : awsSecretKey,
             region: region.isEmpty ? nil : region
@@ -265,8 +327,8 @@ private struct ProviderConfigForm: View {
 
         do {
             let models = try await GatewayClient.shared.verify(req)
-            availableModels = models.isEmpty ? provider.presetModels : models
-            selectedModel = availableModels.first ?? ""
+            availableModels = models
+            selectedModel = trimmedModel
             verifyStatus = .success
         } catch {
             verifyStatus = .failure(error.localizedDescription)
@@ -274,22 +336,86 @@ private struct ProviderConfigForm: View {
         isVerifying = false
     }
 
-    private func activateProvider() async {
+    private func activateProvider(apiKeyIdOverride: String? = nil) async {
         isSaving = true
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedModel = selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let targetApiKeyId = apiKeyIdOverride ?? selectedApiKeyId
+        guard !trimmedModel.isEmpty else {
+            verifyStatus = .failure("请填写模型 ID")
+            isSaving = false
+            return
+        }
         do {
             try await configStore.activate(
                 providerId:   provider.id,
-                modelId:      selectedModel,
-                apiKey:       apiKey,
+                modelId:      trimmedModel,
+                apiKey:       trimmedKey,
+                apiKeyId:     trimmedKey.isEmpty ? nonEmpty(targetApiKeyId) : nil,
                 baseUrl:      baseUrl.isEmpty ? nil : baseUrl,
                 awsAccessKey: awsAccessKey.isEmpty ? nil : awsAccessKey,
                 awsSecretKey: awsSecretKey.isEmpty ? nil : awsSecretKey,
                 region:       region.isEmpty ? nil : region
             )
+            apiKey = ""
+            showAPIKey = false
+            loadSavedValues()
+            verifyStatus = .success
         } catch {
             verifyStatus = .failure(error.localizedDescription)
         }
         isSaving = false
+    }
+
+    private func nonEmpty(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func unique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.filter { value in
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else { return false }
+            seen.insert(trimmed)
+            return true
+        }
+    }
+
+    private func savedApiKeyRow(_ key: StoredAPIKey) -> some View {
+        let isActive = key.id == providerConfig?.activeApiKeyId
+        return HStack(spacing: 8) {
+            Image(systemName: isActive ? "checkmark.circle.fill" : "key")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(isActive ? .green : .secondary)
+                .frame(width: 16)
+
+            Text(key.maskedKey)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer()
+
+            if isActive {
+                Text("当前")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.green)
+            } else {
+                Button("切换") {
+                    selectedApiKeyId = key.id
+                    Task { await activateProvider(apiKeyIdOverride: key.id) }
+                }
+                .font(.system(size: 11, weight: .medium))
+                .disabled(selectedModel.isEmpty || isSaving)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isActive ? Color.green.opacity(0.10) : Color.secondary.opacity(0.08))
+        )
     }
 
     @ViewBuilder
@@ -299,6 +425,446 @@ private struct ProviderConfigForm: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.secondary)
             content()
+        }
+    }
+}
+
+// ── Local MLX model manager ──────────────────────────────────────────────────
+
+@MainActor
+struct ModelManagerPanel: View {
+    @State private var managerState: LocalModelsResponse?
+    @State private var downloads: [ModelDownloadStatus] = []
+    @State private var selectedModelId: String?
+    @State private var repoId = ""
+    @State private var displayName = ""
+    @State private var statusText: String?
+    @State private var isRefreshing = false
+    @State private var isDownloading = false
+    @State private var loadingModelId: String?
+
+    private var installedModels: [LocalModelManifest] {
+        managerState?.installed ?? []
+    }
+
+    private var selectedModel: LocalModelManifest? {
+        installedModels.first { $0.id == selectedModelId }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            HSplitView {
+                installedList
+                    .frame(minWidth: 260, idealWidth: 300)
+                detailPane
+                    .frame(minWidth: 430)
+            }
+        }
+        .frame(minWidth: 720, minHeight: 500)
+        .task { await refresh() }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Text("端侧模型")
+                .font(.system(size: 16, weight: .semibold))
+            if let statusText {
+                Text(statusText)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button {
+                openModelsDir()
+            } label: {
+                Label("打开目录", systemImage: "folder")
+            }
+            .disabled(managerState?.modelsDir == nil)
+
+            Button {
+                Task { await refresh() }
+            } label: {
+                Label("刷新", systemImage: "arrow.clockwise")
+            }
+            .disabled(isRefreshing)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+    }
+
+    private var installedList: some View {
+        List(selection: $selectedModelId) {
+            Section("已安装") {
+                if installedModels.isEmpty {
+                    Text("暂无模型")
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(installedModels) { model in
+                        HStack(spacing: 8) {
+                            Image(systemName: "memorychip")
+                                .foregroundColor(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(model.displayName)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .lineLimit(1)
+                                Text(model.repoId)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            if isActive(model) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            }
+                        }
+                        .tag(model.id)
+                    }
+                }
+            }
+        }
+        .listStyle(.sidebar)
+    }
+
+    private var detailPane: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                dependencyStatus
+                downloadSection
+                Divider()
+                if let selectedModel {
+                    modelDetail(selectedModel)
+                } else {
+                    Text("选择一个已安装模型")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                }
+                downloadStatusList
+            }
+            .padding(22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var dependencyStatus: some View {
+        HStack(spacing: 8) {
+            dependencyBadge(
+                title: "MLX",
+                ok: managerState?.mlxAvailable == true,
+                missingText: "未安装 mlx-lm"
+            )
+            dependencyBadge(
+                title: "Hugging Face",
+                ok: managerState?.huggingfaceHubAvailable == true,
+                missingText: "未安装 huggingface_hub"
+            )
+        }
+    }
+
+    private func dependencyBadge(title: String, ok: Bool, missingText: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundColor(ok ? .green : .orange)
+            Text(ok ? "\(title) 可用" : missingText)
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var downloadSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("下载模型")
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Menu {
+                    ForEach(managerState?.recommended ?? []) { item in
+                        Button(item.displayName) {
+                            repoId = item.repoId
+                            displayName = item.displayName
+                        }
+                    }
+                } label: {
+                    Label("推荐", systemImage: "sparkles")
+                }
+            }
+
+            TextField("Hugging Face ID", text: $repoId)
+                .textFieldStyle(.roundedBorder)
+
+            TextField("显示名称（可选）", text: $displayName)
+                .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: 10) {
+                Button {
+                    Task { await startDownload() }
+                } label: {
+                    Label("下载", systemImage: "arrow.down.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isDownloading || repoId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || managerState?.huggingfaceHubAvailable != true)
+
+                if isDownloading {
+                    ProgressView()
+                        .scaleEffect(0.75)
+                }
+
+                if let path = managerState?.modelsDir {
+                    Text(path)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var downloadStatusList: some View {
+        if !downloads.isEmpty {
+            Divider()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("下载状态")
+                    .font(.system(size: 13, weight: .semibold))
+                ForEach(downloads) { item in
+                    HStack(spacing: 8) {
+                        Image(systemName: iconForDownloadStatus(item.status))
+                            .foregroundColor(colorForDownloadStatus(item.status))
+                        Text(item.displayName ?? item.repoId)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(labelForDownloadStatus(item.status))
+                            .foregroundColor(.secondary)
+                        if let error = item.error, !error.isEmpty {
+                            Text(error)
+                                .foregroundColor(.red)
+                                .lineLimit(1)
+                        }
+                    }
+                    .font(.system(size: 12))
+                }
+            }
+        }
+    }
+
+    private func modelDetail(_ model: LocalModelManifest) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.displayName)
+                        .font(.system(size: 16, weight: .semibold))
+                    Text(model.repoId)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                }
+                Spacer()
+                if isActive(model) {
+                    Label("当前使用", systemImage: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                }
+            }
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    Text("引擎").foregroundColor(.secondary)
+                    Text(model.engine?.uppercased() ?? "MLX")
+                }
+                GridRow {
+                    Text("视觉").foregroundColor(.secondary)
+                    Text((model.supportsVision ?? false) ? "支持" : "不支持")
+                }
+                GridRow {
+                    Text("路径").foregroundColor(.secondary)
+                    Text(model.localPath)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+            }
+            .font(.system(size: 12))
+
+            HStack(spacing: 10) {
+                Button {
+                    Task { await load(model) }
+                } label: {
+                    Label("加载", systemImage: "play.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(managerState?.mlxAvailable != true || loadingModelId != nil)
+
+                Button {
+                    Task { await unload() }
+                } label: {
+                    Label("卸载", systemImage: "stop.circle")
+                }
+                .disabled(!isActive(model) || loadingModelId != nil)
+
+                Button(role: .destructive) {
+                    Task { await confirmDelete(model) }
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
+                .disabled(loadingModelId != nil)
+
+                if loadingModelId == model.id {
+                    ProgressView()
+                        .scaleEffect(0.75)
+                }
+            }
+        }
+    }
+
+    private func refresh() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+        do {
+            let next = try await GatewayClient.shared.getLocalModels()
+            managerState = next
+            downloads = next.downloads
+            if let selectedModelId, next.installed.contains(where: { $0.id == selectedModelId }) {
+                return
+            }
+            selectedModelId = next.installed.first(where: { next.activeProviderId == "mlx_local" && $0.id == next.activeModelId })?.id
+                ?? next.installed.first?.id
+        } catch {
+            statusText = error.localizedDescription
+        }
+    }
+
+    private func startDownload() async {
+        let trimmedRepo = repoId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedRepo.isEmpty else { return }
+        isDownloading = true
+        statusText = "开始下载 \(trimmedRepo)"
+        do {
+            let status = try await GatewayClient.shared.downloadModel(
+                ModelDownloadRequest(
+                    repoId: trimmedRepo,
+                    displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : displayName,
+                    revision: nil
+                )
+            )
+            await pollDownload(modelId: status.modelId)
+        } catch {
+            statusText = error.localizedDescription
+        }
+        isDownloading = false
+    }
+
+    private func pollDownload(modelId: String) async {
+        for _ in 0..<360 {
+            do {
+                let response = try await GatewayClient.shared.downloadStatus()
+                downloads = response.downloads
+                if let match = response.downloads.first(where: { $0.modelId == modelId }) {
+                    if match.status == "complete" {
+                        statusText = "下载完成"
+                        await refresh()
+                        return
+                    }
+                    if match.status == "failed" {
+                        statusText = match.error ?? "下载失败"
+                        return
+                    }
+                }
+            } catch {
+                statusText = error.localizedDescription
+                return
+            }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        statusText = "下载仍在进行"
+    }
+
+    private func load(_ model: LocalModelManifest) async {
+        loadingModelId = model.id
+        defer { loadingModelId = nil }
+        do {
+            try await GatewayClient.shared.loadLocalModel(ModelActionRequest(modelId: model.id))
+            await APIConfigStore.shared.loadFromGateway()
+            statusText = "已加载 \(model.displayName)"
+            await refresh()
+        } catch {
+            statusText = error.localizedDescription
+        }
+    }
+
+    private func unload() async {
+        do {
+            try await GatewayClient.shared.unloadLocalModel()
+            await APIConfigStore.shared.loadFromGateway()
+            statusText = "已卸载"
+            await refresh()
+        } catch {
+            statusText = error.localizedDescription
+        }
+    }
+
+    private func confirmDelete(_ model: LocalModelManifest) async {
+        let alert = NSAlert()
+        alert.messageText = "删除本地模型？"
+        alert.informativeText = model.displayName
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "删除")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        await delete(model)
+    }
+
+    private func delete(_ model: LocalModelManifest) async {
+        loadingModelId = model.id
+        defer { loadingModelId = nil }
+        do {
+            try await GatewayClient.shared.deleteLocalModel(modelId: model.id)
+            await APIConfigStore.shared.loadFromGateway()
+            statusText = "已删除 \(model.displayName)"
+            await refresh()
+        } catch {
+            statusText = error.localizedDescription
+        }
+    }
+
+    private func openModelsDir() {
+        guard let path = managerState?.modelsDir else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+
+    private func isActive(_ model: LocalModelManifest) -> Bool {
+        managerState?.activeProviderId == "mlx_local" && managerState?.activeModelId == model.id
+    }
+
+    private func labelForDownloadStatus(_ status: String) -> String {
+        switch status {
+        case "queued": return "排队中"
+        case "downloading": return "下载中"
+        case "complete": return "完成"
+        case "failed": return "失败"
+        default: return status
+        }
+    }
+
+    private func iconForDownloadStatus(_ status: String) -> String {
+        switch status {
+        case "queued": return "clock"
+        case "downloading": return "arrow.down.circle"
+        case "complete": return "checkmark.circle.fill"
+        case "failed": return "exclamationmark.triangle.fill"
+        default: return "circle"
+        }
+    }
+
+    private func colorForDownloadStatus(_ status: String) -> Color {
+        switch status {
+        case "complete": return .green
+        case "failed": return .red
+        case "downloading": return .blue
+        default: return .secondary
         }
     }
 }

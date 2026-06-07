@@ -1,7 +1,6 @@
 import AppKit
 
-/// Minimal menu bar item — only provides a "Quit" entry.
-/// All island logic lives in IslandWindowController.
+/// Menu bar entry for configuration and app-level actions.
 @MainActor
 class StatusBarController: NSObject {
     private var statusItem: NSStatusItem!
@@ -19,10 +18,27 @@ class StatusBarController: NSObject {
 
     @objc private func showMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "退出 Jarvis", action: #selector(quit), keyEquivalent: "q"))
+        let modelItem = NSMenuItem(title: "管理端侧模型...", action: #selector(openModelManager), keyEquivalent: "")
+        modelItem.target = self
+        menu.addItem(modelItem)
+        let apiItem = NSMenuItem(title: "配置云端 API...", action: #selector(openAPISettings), keyEquivalent: "")
+        apiItem.target = self
+        menu.addItem(apiItem)
+        menu.addItem(NSMenuItem.separator())
+        let quitItem = NSMenuItem(title: "退出 Jarvis", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
+    }
+
+    @objc private func openModelManager() {
+        ModelManagerWindowManager.shared.open()
+    }
+
+    @objc private func openAPISettings() {
+        APISettingsWindowManager.shared.open()
     }
 
     @objc private func quit() {

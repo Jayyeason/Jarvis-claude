@@ -21,7 +21,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
-	<true/>
+	<false/>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Jarvis 需要访问日历来添加识别到的日程。</string>
 	<key>NSHumanReadableCopyright</key>
@@ -32,5 +32,7 @@
 	<string>Jarvis 需要访问提醒事项来添加识别到的任务。</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>Jarvis 需要截图权限来识别屏幕内容。</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Jarvis 需要发送通知来主动提醒即将开始的日程和待办。</string>
 </dict>
 </plist>
