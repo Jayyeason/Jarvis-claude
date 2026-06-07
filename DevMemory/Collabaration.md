@@ -496,4 +496,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Python/agent/assistant_chat.py,Python/agent/memory.py,Python/gateway.py,Python/tests/test_agent_components.py
 - Decision: New calendar/reminder creation should not ask for confirmation when fields are ready; user.md should not keep a standalone city section; Memory replies must only say written when a valid tool write happened.
 - Next: Restart the Python gateway/Jarvis app to load the routing and memory migration changes.
+### 2026-06-08 01:25:14 +0800 | milestone
+- Summary: Fixed reminder alert handling and renamed reminder preference labels: Reminders now use absolute EKAlarm dates based on due time, reminder alert reads support legacy relative alarms, and user.md labels are migrated to '提醒事项默认当天DDL' / '提醒事项默认提前提醒时间'.
+- Files: Jarvis/NativeActions/EventKitTool.swift,Jarvis/App/HeartbeatManager.swift,Python/agent/memory.py,Python/agent/assistant_chat.py,Python/tests/test_agent_components.py
+- Decision: Reminder alarms should be stored as absolute dates because list/query code compares alarm.absoluteDate against dueDate; old relative alarms are treated as fallback for display.
+- Next: Restart Jarvis/Python gateway; existing reminders without any persisted alarm may need their alert set once.
 

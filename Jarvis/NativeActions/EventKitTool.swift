@@ -233,8 +233,9 @@ class EventKitTool {
             }
             reminder.dueDateComponents = components
 
-            if let minutes = result.alertMinutesBeforeDue {
-                reminder.addAlarm(EKAlarm(relativeOffset: TimeInterval(-minutes * 60)))
+            if let minutes = result.alertMinutesBeforeDue,
+               let due = Calendar.current.date(from: components) {
+                reminder.addAlarm(reminderAlarm(minutesBeforeDue: minutes, due: due))
             }
         }
 
@@ -295,6 +296,7 @@ class EventKitTool {
         var updatedAny = false
         for id in Set(ids) {
             guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else { continue }
+            let existingAlertMinutes = reminderAlertMinutesBeforeDue(reminder)
 
             if let title = patch.title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 reminder.title = title
@@ -320,6 +322,9 @@ class EventKitTool {
                 }
             }
 
+            if let existingAlertMinutes, let due = reminderDueDate(reminder) {
+                replaceAlarms(on: reminder, with: reminderAlarm(minutesBeforeDue: existingAlertMinutes, due: due))
+            }
             try store.save(reminder, commit: false)
             updatedAny = true
         }
@@ -334,7 +339,8 @@ class EventKitTool {
         var updatedAny = false
         for id in Set(ids) {
             guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else { continue }
-            replaceAlarms(on: reminder, with: EKAlarm(relativeOffset: TimeInterval(-max(minutesBeforeDue, 0) * 60)))
+            guard let due = reminderDueDate(reminder) else { throw EventKitError.missingReminderDueDate }
+            replaceAlarms(on: reminder, with: reminderAlarm(minutesBeforeDue: minutesBeforeDue, due: due))
             try store.save(reminder, commit: false)
             updatedAny = true
         }
@@ -377,12 +383,19 @@ class EventKitTool {
     private func reminderAlertMinutesBeforeDue(_ reminder: EKReminder) -> Int? {
         guard let due = reminderDueDate(reminder) else { return nil }
         let values = (reminder.alarms ?? []).compactMap { alarm -> Int? in
+            if alarm.absoluteDate == nil, alarm.relativeOffset <= 0 {
+                return max(0, Int(round(abs(alarm.relativeOffset) / 60)))
+            }
             guard let alertDate = alarm.absoluteDate else { return nil }
             let minutes = Int(round(due.timeIntervalSince(alertDate) / 60))
             guard minutes >= 0 else { return nil }
             return minutes
         }
         return values.min()
+    }
+
+    private func reminderAlarm(minutesBeforeDue: Int, due: Date) -> EKAlarm {
+        EKAlarm(absoluteDate: due.addingTimeInterval(TimeInterval(-max(minutesBeforeDue, 0) * 60)))
     }
 
     private func priorityValue(_ priority: String) -> Int {

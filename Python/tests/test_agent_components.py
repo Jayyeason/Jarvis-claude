@@ -355,7 +355,7 @@ class MemoryManagerTests(unittest.TestCase):
         self.assertNotIn("## 城市", text)
         self.assertIn("- 城市：北京", text)
         self.assertIn("## 日程与提醒事项偏好", text)
-        self.assertIn("- 提醒默认到期时间：20:00", text)
+        self.assertIn("- 提醒事项默认当天DDL：20:00", text)
         self.assertIn("20:00", prompt_context)
 
     def test_managed_files_return_memory_editor_whitelist(self):
@@ -413,6 +413,27 @@ class MemoryManagerTests(unittest.TestCase):
 
         self.assertNotIn("## 城市", text)
         self.assertIn("## 用户资料\n- 城市：上海", text)
+
+    def test_managed_user_file_migrates_legacy_reminder_preference_labels(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            user_path = Path(tmp) / "user.md"
+            user_path.write_text(
+                "# user.md\n\n"
+                "## 日程与提醒事项偏好\n"
+                "- 日程默认时长：60 分钟\n"
+                "- 日程默认提醒：提前 10 分钟\n"
+                "- 提醒默认到期时间：09:00\n"
+                "- 提醒默认提前提醒：提前 10 分钟\n",
+                encoding="utf-8",
+            )
+
+            content = manager.managed_files()[1]["content"]
+
+        self.assertIn("- 提醒事项默认当天DDL：09:00", content)
+        self.assertIn("- 提醒事项默认提前提醒时间：提前 10 分钟", content)
+        self.assertNotIn("提醒默认到期时间", content)
+        self.assertNotIn("提醒默认提前提醒", content)
 
     def test_append_user_memory_deduplicates_long_term_preference(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -610,7 +631,7 @@ class AssistantChatIntentTests(unittest.TestCase):
         self.assertEqual(values["reminder_default_alert_minutes"], 15)
 
     def test_parse_scoped_default_reminder_time_minutes(self):
-        values = parse_preference_update("待办默认提醒时间改为15min")
+        values = parse_preference_update("提醒事项默认提前提醒时间改为15min")
 
         self.assertEqual(values, {"reminder_default_alert_minutes": 15})
 
@@ -811,7 +832,7 @@ class AssistantChatIntentTests(unittest.TestCase):
         self.assertEqual(plan.action, "update_preference")
         self.assertEqual(plan.preference_values["calendar_default_alert_minutes"], 20)
         self.assertEqual(plan.preference_values["reminder_default_alert_minutes"], 20)
-        self.assertIn("待办默认提前提醒", plan.reply)
+        self.assertIn("提醒事项默认提前提醒时间", plan.reply)
 
     def test_calendar_and_list_are_not_user_preferences(self):
         self.assertIsNone(parse_preference_update("默认日历设为 Work"))
@@ -1226,7 +1247,7 @@ class PromptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             prompt = build_system_prompt(MemoryManager(Path(tmp) / "memory.json"), "user_text")
 
-        self.assertIn("提醒默认到期时间：未学习稳定偏好，缺具体时间时追问用户", prompt)
+        self.assertIn("提醒事项默认当天DDL：未学习稳定偏好，缺具体时间时追问用户", prompt)
 
     def test_prompt_includes_explicit_reminder_time_preference(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1235,7 +1256,7 @@ class PromptTests(unittest.TestCase):
 
             prompt = build_system_prompt(MemoryManager(path), "user_text")
 
-        self.assertIn("提醒默认到期时间：18:30", prompt)
+        self.assertIn("提醒事项默认当天DDL：18:30", prompt)
 
     def test_invalid_input_mode_falls_back_to_user_text(self):
         self.assertEqual(normalize_input_mode("unknown"), "user_text")

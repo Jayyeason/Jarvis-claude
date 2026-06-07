@@ -146,6 +146,9 @@ class HeartbeatManager {
     private func reminderAlertMinutesBeforeDue(_ reminder: EKReminder) -> Int? {
         guard let due = reminder.dueDateComponents.flatMap({ Calendar.current.date(from: $0) }) else { return nil }
         let values = (reminder.alarms ?? []).compactMap { alarm -> Int? in
+            if alarm.absoluteDate == nil, alarm.relativeOffset <= 0 {
+                return max(0, Int(round(abs(alarm.relativeOffset) / 60)))
+            }
             guard let alertDate = alarm.absoluteDate else { return nil }
             let minutes = Int(round(due.timeIntervalSince(alertDate) / 60))
             guard minutes >= 0 else { return nil }

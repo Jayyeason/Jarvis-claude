@@ -58,8 +58,8 @@ TIME_HINTS = [
 PREFERENCE_LABELS = {
     "calendar_default_duration_minutes": "日程默认时长",
     "calendar_default_alert_minutes": "日程默认提醒",
-    "reminder_default_alert_minutes": "待办默认提前提醒",
-    "reminder_default_due_time": "待办默认提醒时间",
+    "reminder_default_alert_minutes": "提醒事项默认提前提醒时间",
+    "reminder_default_due_time": "提醒事项默认当天DDL",
 }
 
 LOCAL_OPERATION_HINTS = [

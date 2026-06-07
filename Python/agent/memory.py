@@ -14,6 +14,8 @@ MEMORY_FILE_READ_LIMIT_BYTES = 256 * 1024
 MEMORY_FILE_WRITE_LIMIT_BYTES = 256 * 1024
 USER_PREFERENCES_HEADING = "## 日程与提醒事项偏好"
 LEGACY_USER_PREFERENCES_HEADINGS = ["## 日历与提醒偏好"]
+REMINDER_DEFAULT_DUE_TIME_LABEL = "提醒事项默认当天DDL"
+REMINDER_DEFAULT_ALERT_LABEL = "提醒事项默认提前提醒时间"
 USER_PROFILE_HEADING = "## 用户资料"
 USER_LONG_TERM_MEMORY_HEADINGS = {
     "fact": "## 用户长期事实",
@@ -486,6 +488,17 @@ class MemoryManager:
         if city and (not current_city or current_city == "auto"):
             updated = self._set_markdown_kv(updated, USER_PROFILE_HEADING, USER_PROFILE_FIELDS["city"], city)
         updated = self._remove_markdown_sections(updated, ["## 城市"])
+        updated = self._replace_legacy_preference_labels(updated)
+        return updated
+
+    def _replace_legacy_preference_labels(self, text: str) -> str:
+        replacements = {
+            "- 提醒默认到期时间：": f"- {REMINDER_DEFAULT_DUE_TIME_LABEL}：",
+            "- 提醒默认提前提醒：": f"- {REMINDER_DEFAULT_ALERT_LABEL}：",
+        }
+        updated = text
+        for old, new in replacements.items():
+            updated = updated.replace(old, new)
         return updated
 
     def _markdown_kv_value(self, text: str, heading: str, label: str) -> Optional[str]:
@@ -619,8 +632,8 @@ class MemoryManager:
             "## 用户偏好",
             f"- 日程默认时长：{prefs.calendar_default_duration_minutes} 分钟",
             f"- 日程默认提醒：提前 {prefs.calendar_default_alert_minutes} 分钟",
-            f"- 提醒默认到期时间：{reminder_due_time}",
-            f"- 提醒默认提前提醒：{reminder_alert}",
+            f"- {REMINDER_DEFAULT_DUE_TIME_LABEL}：{reminder_due_time}",
+            f"- {REMINDER_DEFAULT_ALERT_LABEL}：{reminder_alert}",
             f"- 截止类提醒默认优先级：{prefs.reminder_default_priority_for_deadline}",
         ]
         lines.append("- 写入容器：日程使用 macOS 系统默认日历；待办使用“提醒事项”列表")
@@ -713,8 +726,8 @@ class MemoryManager:
             f"{USER_PREFERENCES_HEADING}\n"
             f"- 日程默认时长：{prefs.calendar_default_duration_minutes} 分钟\n"
             f"- 日程默认提醒：提前 {prefs.calendar_default_alert_minutes} 分钟\n"
-            f"- 提醒默认到期时间：{reminder_due_time}\n"
-            f"- 提醒默认提前提醒：{reminder_alert}\n"
+            f"- {REMINDER_DEFAULT_DUE_TIME_LABEL}：{reminder_due_time}\n"
+            f"- {REMINDER_DEFAULT_ALERT_LABEL}：{reminder_alert}\n"
             "- 写入容器：日程使用 macOS 系统默认日历；待办使用“提醒事项”列表\n"
         )
 
