@@ -506,4 +506,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Python/agent/heartbeat.py,Jarvis/App/HeartbeatManager.swift,Python/tests/test_agent_components.py
 - Decision: Cron reminders catch up only within an active heartbeat interval, capped at 10 minutes; first startup still uses a short 65-second window to avoid stale popups.
 - Next: Restart Jarvis/Python gateway and verify a near-future /cron popup manually.
+### 2026-06-08 01:39:31 +0800 | milestone
+- Summary: Fixed heartbeat datetime parsing so UTC ISO timestamps from Swift are converted to local time before cron and fixed-hour rules are evaluated.
+- Files: Python/agent/heartbeat.py,Python/tests/test_agent_components.py,Python/agent/cron_memory.py,Python/agent/assistant_chat.py
+- Decision: Heartbeat rules should evaluate wall-clock schedules in the gateway machine's local timezone; cron help/prompt now describes island plus system notifications without creating Calendar/Reminder items.
+- Next: Restart Jarvis/Python gateway and verify a near-future /cron reminder fires at local wall-clock time.
 

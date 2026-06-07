@@ -605,7 +605,7 @@ def cron_task_planner_prompt(now: datetime, memory_context: str = "") -> str:
         "你是 Jarvis 的 Cron 弹窗提醒解析器，只输出一个 JSON 对象，不要输出 Markdown 或解释。\n"
         f"当前本地时间：{now.isoformat()}。\n"
         "把用户的自然语言周期提醒解析成标准 5 字段 cron 表达式：分 时 日 月 周。\n"
-        "这些提醒只用于 Jarvis 岛弹窗，不创建 macOS 日程、提醒事项或系统通知。\n\n"
+        "这些提醒只用于 Jarvis 弹窗通知，不创建 macOS 日程或提醒事项。\n\n"
         "JSON 结构：\n"
         '{ "cron_expr": "0 10 * * *", "title": "做复盘", "body": "提醒你做复盘" }\n\n'
         "规则：\n"

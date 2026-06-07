@@ -1,7 +1,9 @@
 import asyncio
 import json
+import os
 import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -40,7 +42,7 @@ from agent.cron_memory import (
     read_cron_tasks,
     validate_cron_expr,
 )
-from agent.heartbeat import HeartbeatEngine
+from agent.heartbeat import HeartbeatEngine, _parse_datetime
 from agent.memory import MEMORY_FILE_WRITE_LIMIT_BYTES, MemoryManager, UserPreferences
 from agent.preferences import PreferenceEngine
 from agent.prompts import build_system_prompt, normalize_input_mode
@@ -576,6 +578,24 @@ class CronMemoryTests(unittest.TestCase):
                 events = engine._cron_rules(datetime(2026, 6, 7, 10, 3, 0))
 
         self.assertEqual(events, [])
+
+    def test_heartbeat_datetime_parser_converts_utc_to_local_time(self):
+        if not hasattr(time, "tzset"):
+            self.skipTest("time.tzset is unavailable")
+
+        previous_tz = os.environ.get("TZ")
+        os.environ["TZ"] = "Asia/Shanghai"
+        time.tzset()
+        try:
+            parsed = _parse_datetime("2026-06-07T16:20:00Z")
+        finally:
+            if previous_tz is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_tz
+            time.tzset()
+
+        self.assertEqual(parsed, datetime(2026, 6, 8, 0, 20, 0))
 
 
 class CronReplyFormattingTests(unittest.TestCase):
