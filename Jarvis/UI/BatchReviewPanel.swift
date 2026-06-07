@@ -1,5 +1,25 @@
 import SwiftUI
 
+struct BatchReviewResult {
+    let action: String
+    let kind: String
+    let title: String
+
+    var chatSummary: String {
+        let kindText = kind == "calendar" ? "日程" : "待办"
+        switch action {
+        case "written":
+            return "已写入\(kindText)：\(title)"
+        case "replaced":
+            return "已替换并写入\(kindText)：\(title)"
+        case "skipped":
+            return "已跳过\(kindText)：\(title)"
+        default:
+            return "已处理\(kindText)：\(title)"
+        }
+    }
+}
+
 struct BatchReviewPanel: View {
     @State private var drafts: [CandidateDraft]
     @State private var currentIndex = 0
@@ -7,15 +27,21 @@ struct BatchReviewPanel: View {
 
     private let totalCount: Int
     private let sessionID: String?
+    let onCandidateResolved: ((BatchReviewResult) -> Void)?
     let onClose: () -> Void
 
-    init(response: AgentResponse, onClose: @escaping () -> Void) {
+    init(
+        response: AgentResponse,
+        onCandidateResolved: ((BatchReviewResult) -> Void)? = nil,
+        onClose: @escaping () -> Void
+    ) {
         let initial = (response.candidates ?? []).enumerated().map { idx, candidate in
             CandidateDraft(candidate: candidate, fallbackIndex: idx + 1)
         }
         _drafts = State(initialValue: initial)
         totalCount = initial.count
         sessionID = response.sessionId
+        self.onCandidateResolved = onCandidateResolved
         self.onClose = onClose
     }
 
@@ -257,6 +283,11 @@ extension BatchReviewPanel {
             }
             drafts[idx].status = "written"
             await sendFeedback(for: drafts[idx], action: eventIDs.isEmpty ? "written" : "replaced")
+            onCandidateResolved?(BatchReviewResult(
+                action: eventIDs.isEmpty ? "written" : "replaced",
+                kind: drafts[idx].kind,
+                title: drafts[idx].displayTitle
+            ))
             TaskListStore.shared.reload()
             try? await Task.sleep(nanoseconds: 350_000_000)
             processingID = nil
@@ -294,6 +325,11 @@ extension BatchReviewPanel {
         guard let idx = drafts.firstIndex(where: { $0.id == id }), processingID == nil else { return }
         drafts[idx].status = "skipped"
         await sendFeedback(for: drafts[idx], action: "skipped")
+        onCandidateResolved?(BatchReviewResult(
+            action: "skipped",
+            kind: drafts[idx].kind,
+            title: drafts[idx].displayTitle
+        ))
         try? await Task.sleep(nanoseconds: 140_000_000)
         advanceOrClose()
     }
@@ -314,12 +350,14 @@ extension BatchReviewPanel {
     private func sendFeedback(for draft: CandidateDraft, action: String, note: String? = nil) async {
         let req = MemoryFeedbackRequest(
             action: action,
+            sessionId: sessionID,
             candidateId: draft.id,
             candidateKind: draft.kind,
             title: draft.title.isEmpty ? nil : draft.title,
             status: draft.status,
             modified: draft.isModified,
-            note: note
+            note: note,
+            finalCandidate: draft.finalCandidateSnapshot
         )
         try? await GatewayClient.shared.memoryFeedback(req)
     }
@@ -512,7 +550,7 @@ private struct CandidateDraftEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if draft.needsInput {
+            if draft.showsConversationBox {
                 followupBox
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
@@ -669,7 +707,7 @@ private struct CandidateDraftEditor: View {
                 Image(systemName: "bubble.left.and.text.bubble.right")
                     .foregroundStyle(.blue)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(draft.clarificationPrompt)
+                    Text(draft.conversationPrompt)
                         .font(.system(size: 12, weight: .medium))
                 }
             }
@@ -830,26 +868,37 @@ private struct CandidateInfoSummary: View {
             output.append(SummaryInfoRow(
                 systemImage: "clock",
                 label: "时间",
-                value: draft.calendarTimeSummary,
+                value: draft.preferenceMarked(draft.calendarTimeSummary, fields: ["calendar.end_time"]),
                 isPrimary: true,
                 isMuted: draft.primaryTimeIsMissing || draft.endTimeIsMissing
             ))
             if let location = draft.locationLabel {
                 output.append(SummaryInfoRow(systemImage: "mappin.and.ellipse", label: "地点", value: location))
             }
-            output.append(SummaryInfoRow(systemImage: "bell", label: "提醒", value: draft.calendarAlertLabel))
+            output.append(SummaryInfoRow(
+                systemImage: "bell",
+                label: "提醒",
+                value: draft.preferenceMarked(draft.calendarAlertLabel, fields: ["calendar.alert_minutes_before_start"])
+            ))
         } else {
             output.append(SummaryInfoRow(
                 systemImage: "bell.badge",
                 label: "提醒",
-                value: draft.reminderDueSummary,
+                value: draft.preferenceMarked(
+                    draft.reminderDueSummary,
+                    fields: ["reminder.due_time", "reminder.alert_minutes_before_due"]
+                ),
                 isPrimary: true,
                 isMuted: draft.primaryTimeIsMissing
             ))
             if let location = draft.locationLabel {
                 output.append(SummaryInfoRow(systemImage: "mappin.and.ellipse", label: "地点", value: location))
             }
-            output.append(SummaryInfoRow(systemImage: "list.bullet", label: "列表", value: draft.listName))
+            output.append(SummaryInfoRow(
+                systemImage: "list.bullet",
+                label: "列表",
+                value: draft.preferenceMarked(draft.listName, fields: ["reminder.list_name"])
+            ))
             if draft.priority != "none" || draft.flagged {
                 output.append(SummaryInfoRow(systemImage: "flag", label: "标记", value: draft.reminderFlagLabel))
             }
@@ -995,6 +1044,7 @@ private struct CandidateDraft: Identifiable {
     var priority: String
     var flagged: Bool
     var url: URL?
+    var appliedPreferences: [AppliedPreference]
     var missingFields: [String]
     var clarificationQuestion: String
     var conflicts: [ConflictInfo]
@@ -1044,6 +1094,7 @@ private struct CandidateDraft: Identifiable {
             flagged = payload?.flagged ?? false
             url = payload?.url.flatMap(URL.init(string:))
         }
+        appliedPreferences = candidate.appliedPreferences ?? []
         missingFields = candidate.missingFields ?? []
         clarificationQuestion = candidate.clarificationQuestion ?? ""
         conflicts = candidate.conflicts ?? []
@@ -1166,6 +1217,14 @@ private struct CandidateDraft: Identifiable {
         !missingFields.isEmpty || status == "needs_input"
     }
 
+    var hasAppliedPreferences: Bool {
+        !appliedPreferences.isEmpty
+    }
+
+    var showsConversationBox: Bool {
+        needsInput || hasAppliedPreferences
+    }
+
     var isPassive: Bool {
         ["written", "skipped", "error"].contains(status)
     }
@@ -1203,6 +1262,22 @@ private struct CandidateDraft: Identifiable {
     var clarificationPrompt: String {
         let trimmed = clarificationQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? missingPrompt : trimmed
+    }
+
+    var conversationPrompt: String {
+        if needsInput {
+            return clarificationPrompt
+        }
+        if let message = appliedPreferences.first?.message,
+           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return message
+        }
+        return "可以直接写入，也可以继续补充修改。"
+    }
+
+    func preferenceMarked(_ value: String, fields: [String]) -> String {
+        let applied = Set(appliedPreferences.map(\.field))
+        return fields.contains { applied.contains($0) } ? "\(value) · 按偏好" : value
     }
 
     var calendarTimeSummary: String {
@@ -1338,6 +1413,55 @@ private struct CandidateDraft: Identifiable {
         )
     }
 
+    var finalCandidateSnapshot: RecognitionCandidate {
+        RecognitionCandidate(
+            id: id,
+            kind: kind,
+            calendar: kind == "calendar" ? calendarPayloadSnapshot : nil,
+            reminder: kind == "reminder" ? reminderPayloadSnapshot : nil,
+            confidence: nil,
+            evidence: nil,
+            missingFields: missingFields,
+            clarificationQuestion: clarificationQuestion.isEmpty ? nil : clarificationQuestion,
+            conflicts: conflicts,
+            status: status,
+            appliedPreferences: appliedPreferences
+        )
+    }
+
+    private var calendarPayloadSnapshot: CalendarPayload {
+        CalendarPayload(
+            title: title.isEmpty ? nil : title,
+            notes: notes.isEmpty ? nil : notes,
+            location: location.isEmpty ? nil : location,
+            startTime: optionalIso(startDate),
+            endTime: optionalIso(endDate),
+            isAllDay: false,
+            needsDuration: endDate == nil,
+            recurrence: recurrence?.payload,
+            travelTimeMinutes: nil,
+            alertMinutesBeforeStart: alertMinutesBeforeStart,
+            calendarName: calendarName,
+            url: url?.absoluteString
+        )
+    }
+
+    private var reminderPayloadSnapshot: ReminderPayload {
+        ReminderPayload(
+            title: title.isEmpty ? nil : title,
+            notes: notes.isEmpty ? nil : notes,
+            location: location.isEmpty ? nil : location,
+            dueDate: hasDueDate ? optionalIsoDate(dueDate) : nil,
+            dueTime: hasDueDate ? (dueTime ?? formatTime(dueDate)) : nil,
+            recurrence: recurrence?.payload,
+            alertMinutesBeforeDue: alertMinutesBeforeDue,
+            listName: listName,
+            priority: priority,
+            flagged: flagged,
+            url: url?.absoluteString
+        )
+    }
+
     mutating func applyFollowup(_ candidate: RecognitionCandidate) {
         guard candidate.kind == kind else {
             status = "error"
@@ -1378,6 +1502,7 @@ private struct CandidateDraft: Identifiable {
         }
 
         missingFields = incomingMissing
+        appliedPreferences = candidate.appliedPreferences ?? []
         clarificationQuestion = candidate.clarificationQuestion ?? ""
         conflicts = []
         selectedConflictIDs = []
@@ -1456,6 +1581,24 @@ private struct CandidateDraft: Identifiable {
         return formatter.string(from: date)
     }
 
+    private func optionalIso(_ date: Date?) -> String? {
+        let value = iso(date)
+        return value.isEmpty ? nil : value
+    }
+
+    private func isoDate(_ date: Date?) -> String {
+        guard let date else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private func optionalIsoDate(_ date: Date?) -> String? {
+        let value = isoDate(date)
+        return value.isEmpty ? nil : value
+    }
+
     private static let dateHeadlineFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_Hans_CN")
@@ -1514,6 +1657,26 @@ private struct CandidateDraft: Identifiable {
         case "sunday": return "周日"
         default: return weekday
         }
+    }
+}
+
+private extension RecurrenceRule {
+    var payload: RecurrencePayload {
+        RecurrencePayload(
+            frequency: frequency,
+            interval: interval,
+            weekdays: weekdays,
+            endDate: formattedEndDate,
+            occurrenceCount: occurrenceCount
+        )
+    }
+
+    var formattedEndDate: String? {
+        guard let endDate else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: endDate)
     }
 }
 

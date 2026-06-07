@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,10 +26,33 @@ from providers.local_model_registry import (
     safe_model_id,
 )
 from agent import JarvisAgent
+from agent.assistant_chat import (
+    assistant_system_prompt,
+    contextual_schedule_creation_text,
+    cron_command_payload,
+    cron_delete_id,
+    heuristic_action_plan,
+    is_cron_create_request,
+    is_cron_delete_request,
+    is_cron_help_request,
+    is_cron_list_request,
+    is_contextual_local_operation_request,
+    is_memory_update_request,
+    is_schedule_creation_request,
+    is_local_operation_request,
+    is_slash_list_request,
+    plan_assistant_action,
+    plan_cron_task,
+    parse_preference_update,
+    preference_reply,
+)
+from agent.cron_memory import append_cron_task, cron_help_text, delete_cron_task, describe_cron_expr, read_cron_tasks
 from agent.heartbeat import HeartbeatEngine
 from contracts import (
     ActivateModelRequest,
     AgentResponse,
+    AssistantChatRequest,
+    AssistantChatResponse,
     AvailableModelsResponse,
     CalendarEventSnapshot,
     ChatRequest,
@@ -37,9 +61,14 @@ from contracts import (
     HeartbeatTickRequest,
     HeartbeatTickResponse,
     LocalModelsResponse,
+    MemoryFileUpdateRequest,
+    MemoryFileUpdateResponse,
+    MemoryFilesResponse,
     MemoryStatus,
     MemoryFeedbackRequest,
     MemoryFeedbackResponse,
+    MemoryPreferencesPatch,
+    MemoryPreferencesResponse,
     ModelActionRequest,
     ModelDownloadRequest,
     ModelDownloadStatus,
@@ -233,6 +262,7 @@ async def lifespan(app: FastAPI):
     app.state.heartbeat = HeartbeatEngine(app.state.agent.memory_manager)
     app.state.local_registry = LocalModelRegistry()
     app.state.model_downloads = {}
+    app.state.assistant_sessions = {}
 
     # Auto-restore last active provider from disk
     cfg = load_config()
@@ -292,13 +322,471 @@ async def memory_status():
     return MemoryStatus(**app.state.agent.memory_manager.memory_status())
 
 
+@app.get("/memory/files", response_model=MemoryFilesResponse)
+async def memory_files():
+    return MemoryFilesResponse(files=app.state.agent.memory_manager.managed_files())
+
+
+@app.put("/memory/files/{file_id}", response_model=MemoryFileUpdateResponse)
+async def update_memory_file(file_id: str, req: MemoryFileUpdateRequest):
+    try:
+        file_payload = app.state.agent.memory_manager.update_managed_file(file_id, req.content)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return MemoryFileUpdateResponse(file=file_payload)
+
+
+def _preferences_response_payload() -> dict:
+    status = app.state.agent.memory_manager.preferences_status()
+    return {
+        "preferences": {key: str(value) for key, value in status.get("preferences", {}).items()},
+        "preference_meta": status.get("preference_meta", {}),
+        "preference_stats": status.get("preference_stats", {}),
+    }
+
+
+@app.get("/memory/preferences", response_model=MemoryPreferencesResponse)
+async def memory_preferences():
+    return MemoryPreferencesResponse(**_preferences_response_payload())
+
+
+@app.patch("/memory/preferences", response_model=MemoryPreferencesResponse)
+async def update_memory_preferences(req: MemoryPreferencesPatch):
+    values = req.model_dump(exclude_unset=True)
+    app.state.agent.memory_manager.update_preferences(values, source="manual")
+    return MemoryPreferencesResponse(**_preferences_response_payload())
+
+
 @app.post("/memory/feedback", response_model=MemoryFeedbackResponse)
 async def memory_feedback(req: MemoryFeedbackRequest):
+    payload = req.model_dump(exclude_none=True)
     app.state.agent.memory_manager.append_learning(
         "candidate_feedback",
-        req.model_dump(exclude_none=True),
+        payload,
     )
+    app.state.agent.memory_manager.learn_from_candidate(
+        req.action,
+        payload.get("final_candidate"),
+        req.session_id,
+    )
+    if req.session_id and req.action in {"accepted", "modified", "rejected", "skipped", "written", "replaced"}:
+        app.state.agent.sessions.pop(req.session_id, None)
     return MemoryFeedbackResponse(status="ok")
+
+
+def _assistant_sessions() -> dict:
+    sessions = getattr(app.state, "assistant_sessions", None)
+    if sessions is None:
+        sessions = {}
+        app.state.assistant_sessions = sessions
+    return sessions
+
+
+def _assistant_history(session_id: str) -> list[dict]:
+    sessions = _assistant_sessions()
+    history = sessions.setdefault(session_id, [])
+    return history if isinstance(history, list) else []
+
+
+def _append_assistant_message(session_id: str, role: str, content: str) -> None:
+    history = _assistant_history(session_id)
+    history.append({"role": role, "content": content})
+    _assistant_sessions()[session_id] = history[-20:]
+
+
+def _assistant_extraction_session_id(session_id: str) -> str:
+    return f"assistant:{session_id}:{uuid4()}"
+
+
+def _cron_tasks_reply() -> str:
+    tasks = read_cron_tasks(app.state.agent.memory_manager)
+    if not tasks:
+        return "⏰ **Cron 弹窗提醒**\n\n当前没有任务。使用 `/cron-help` 查看命令。"
+
+    lines = ["⏰ **已有 Cron 弹窗提醒**"]
+    for idx, task in enumerate(tasks, start=1):
+        lines.extend(
+            [
+                "",
+                f"{idx}. **{task.title}**",
+                f"   - **时间**：{describe_cron_expr(task.cron_expr)}",
+                f"   - **ID**：`{task.id}`",
+                f"   - **Cron**：`{task.cron_expr}`",
+            ]
+        )
+        if task.body and task.body != task.title:
+            lines.append(f"   - **说明**：{task.body}")
+    return "\n".join(lines)
+
+
+def _execute_memory_actions(plan) -> tuple[list[dict[str, str]], bool]:
+    updates: list[dict[str, str]] = []
+    requires_confirmation = False
+    memory = app.state.agent.memory_manager
+
+    for action in plan.memory_actions:
+        if action.confidence < 0.6:
+            requires_confirmation = True
+            updates.append({"tool": action.tool, "status": "skipped_low_confidence"})
+            continue
+
+        args = action.arguments or {}
+        if action.requires_confirmation and action.tool != "propose_soul_change":
+            requires_confirmation = True
+            updates.append({"tool": action.tool, "status": "needs_confirmation", **{k: str(v) for k, v in args.items()}})
+            continue
+
+        if action.tool == "set_user_profile":
+            updates.append(memory.set_user_profile(args.get("field", ""), args.get("value", "")))
+        elif action.tool == "append_user_memory":
+            updates.append(memory.append_user_memory(args.get("category", ""), args.get("content", "")))
+        elif action.tool == "update_schedule_preferences":
+            status = memory.update_preferences(args, source="manual")
+            updated = {
+                key: str(value)
+                for key, value in status.get("preferences", {}).items()
+                if key in args
+            }
+            updates.append({"tool": "update_schedule_preferences", **updated})
+        elif action.tool == "propose_soul_change":
+            requires_confirmation = True
+            updates.append(memory.propose_soul_change(args.get("section", ""), args.get("proposal", "")))
+        else:
+            raise ValueError(f"unsupported memory tool: {action.tool}")
+
+    return updates, requires_confirmation
+
+
+async def _assistant_schedule_extraction_response(
+    session_id: str,
+    message: str,
+    extraction_text: str,
+    started: float,
+) -> AssistantChatResponse:
+    result = await app.state.agent.run(
+        message=extraction_text,
+        session_id=_assistant_extraction_session_id(session_id),
+        input_mode="user_text",
+        provider=app.state.active_provider,
+    )
+    agent_response = AgentResponse(**{k: v for k, v in result.items() if k in AgentResponse.model_fields})
+    count = len(agent_response.candidates or [])
+    if agent_response.type == "batch" and count > 0:
+        reply = f"我识别到 {count} 项。"
+        action = "review_candidates"
+    else:
+        reply = agent_response.reply or agent_response.error or "没有识别到可写入的日程或待办。"
+        action = "chat"
+    _append_assistant_message(session_id, "user", message)
+    _append_assistant_message(session_id, "assistant", reply)
+    logger.info(
+        "POST /assistant/chat schedule action=%s count=%s elapsed=%.2fs",
+        action,
+        count,
+        time.monotonic() - started,
+    )
+    return AssistantChatResponse(
+        session_id=session_id,
+        action=action,
+        reply=reply,
+        agent_response=agent_response if action == "review_candidates" else None,
+    )
+
+
+@app.post("/assistant/chat", response_model=AssistantChatResponse)
+async def assistant_chat(req: AssistantChatRequest):
+    started = time.monotonic()
+    session_id = req.session_id or str(uuid4())
+    message = (req.message or "").strip()
+    logger.info(
+        "POST /assistant/chat session=%s message_chars=%s provider=%s model=%s",
+        session_id,
+        len(message),
+        app.state.active_provider_id,
+        app.state.active_model_id,
+    )
+
+    if not message:
+        return AssistantChatResponse(
+            session_id=session_id,
+            action="chat",
+            reply="请输入想说的内容。",
+        )
+
+    history = _assistant_history(session_id)
+    if is_cron_help_request(message):
+        reply = cron_help_text()
+        _append_assistant_message(session_id, "user", message)
+        _append_assistant_message(session_id, "assistant", reply)
+        return AssistantChatResponse(session_id=session_id, action="chat", reply=reply)
+
+    if is_cron_list_request(message):
+        reply = _cron_tasks_reply()
+        _append_assistant_message(session_id, "user", message)
+        _append_assistant_message(session_id, "assistant", reply)
+        return AssistantChatResponse(session_id=session_id, action="chat", reply=reply)
+
+    if is_cron_delete_request(message):
+        target_id = cron_delete_id(message)
+        if not target_id:
+            reply = "请使用 /cron-delete <cron-id> 删除 Cron 弹窗提醒。"
+            action = "clarify"
+        elif delete_cron_task(app.state.agent.memory_manager, target_id):
+            reply = f"已删除 Cron 弹窗提醒：{target_id}。"
+            action = "chat"
+        else:
+            reply = f"没有找到 Cron 弹窗提醒：{target_id}。可以用 /cron-list 查看现有任务。"
+            action = "clarify"
+        _append_assistant_message(session_id, "user", message)
+        _append_assistant_message(session_id, "assistant", reply)
+        return AssistantChatResponse(session_id=session_id, action=action, reply=reply)
+
+    if is_cron_create_request(message):
+        if not cron_command_payload(message):
+            reply = cron_help_text()
+            _append_assistant_message(session_id, "user", message)
+            _append_assistant_message(session_id, "assistant", reply)
+            return AssistantChatResponse(session_id=session_id, action="chat", reply=reply)
+
+        if app.state.active_provider is None:
+            return AssistantChatResponse(
+                session_id=session_id,
+                action="error",
+                reply="解析 /cron 自然语言需要先配置云端 API 或加载本地 MLX 模型。",
+                error="no_provider",
+            )
+
+        try:
+            plan = await plan_cron_task(
+                app.state.active_provider,
+                message,
+                datetime.now().astimezone(),
+                app.state.agent.memory_manager.render_prompt_context(),
+            )
+            task = append_cron_task(
+                app.state.agent.memory_manager,
+                plan["cron_expr"],
+                plan["title"],
+                plan.get("body", ""),
+            )
+            reply = (
+                "⏰ **Cron 弹窗提醒已创建**\n\n"
+                f"- **内容**：{task.title}\n"
+                f"- **时间**：{describe_cron_expr(task.cron_expr)}\n"
+                f"- **ID**：`{task.id}`\n"
+                f"- **Cron**：`{task.cron_expr}`\n"
+                f"- **存储**：已写入 `heartbeat.md`"
+            )
+            _append_assistant_message(session_id, "user", message)
+            _append_assistant_message(session_id, "assistant", reply)
+            logger.info("POST /assistant/chat cron created id=%s elapsed=%.2fs", task.id, time.monotonic() - started)
+            return AssistantChatResponse(session_id=session_id, action="chat", reply=reply)
+        except ValueError as exc:
+            reply = f"没能创建 Cron 弹窗提醒：{exc}\n\n{cron_help_text()}"
+            _append_assistant_message(session_id, "user", message)
+            _append_assistant_message(session_id, "assistant", reply)
+            return AssistantChatResponse(session_id=session_id, action="clarify", reply=reply)
+        except Exception as exc:
+            logger.exception("POST /assistant/chat cron failed session=%s", session_id)
+            return AssistantChatResponse(
+                session_id=session_id,
+                action="error",
+                reply="创建 Cron 弹窗提醒失败，请稍后重试。",
+                error=str(exc),
+            )
+
+    if is_slash_list_request(message):
+        plan = heuristic_action_plan(message, datetime.now().astimezone())
+        if plan and plan.action == "list_items":
+            reply = plan.reply or "我来查一下。"
+            _append_assistant_message(session_id, "user", message)
+            _append_assistant_message(session_id, "assistant", reply)
+            logger.info("POST /assistant/chat slash-list elapsed=%.2fs", time.monotonic() - started)
+            return AssistantChatResponse(
+                session_id=session_id,
+                action="list_items",
+                reply=reply,
+                action_plan=plan,
+            )
+
+        reply = "请告诉我要查看的时间范围，例如 /list 未来2天。"
+        _append_assistant_message(session_id, "user", message)
+        _append_assistant_message(session_id, "assistant", reply)
+        return AssistantChatResponse(
+            session_id=session_id,
+            action="clarify",
+            reply=reply,
+        )
+
+    if app.state.active_provider is None:
+        return AssistantChatResponse(
+            session_id=session_id,
+            action="error",
+            reply="请先在菜单栏配置云端 API 或加载本地 MLX 模型。",
+            error="no_provider",
+        )
+
+    contextual_creation_text = contextual_schedule_creation_text(message, history)
+    if is_schedule_creation_request(message) or contextual_creation_text:
+        try:
+            return await _assistant_schedule_extraction_response(
+                session_id=session_id,
+                message=message,
+                extraction_text=contextual_creation_text or message,
+                started=started,
+            )
+        except Exception as e:
+            logger.exception("POST /assistant/chat schedule failed session=%s", session_id)
+            return AssistantChatResponse(
+                session_id=session_id,
+                action="error",
+                reply="识别日程/待办失败，请稍后重试。",
+                error=str(e),
+            )
+
+    if (
+        is_local_operation_request(message)
+        or is_contextual_local_operation_request(message, history)
+        or is_memory_update_request(message)
+        or parse_preference_update(message) is not None
+    ):
+        try:
+            plan = await plan_assistant_action(
+                app.state.active_provider,
+                message,
+                history,
+                datetime.now().astimezone(),
+                app.state.agent.memory_manager.render_prompt_context(),
+            )
+            action = "chat"
+            reply = plan.reply or "好的。"
+            if plan.action == "list_items":
+                action = "list_items"
+                reply = plan.reply or "我来查一下。"
+            elif plan.action == "update_alert":
+                action = "execute_operation"
+                reply = plan.reply or "我来找到这项并修改提醒时间。"
+            elif plan.action in {"delete_items", "reschedule_item"}:
+                action = "confirm_operation"
+                reply = plan.reply or "我会先找到匹配项，确认后再操作。"
+            elif plan.action == "clarify":
+                action = "clarify"
+                reply = plan.clarification_question or plan.reply or "我需要再确认一下。"
+            elif plan.action == "create_candidates":
+                try:
+                    return await _assistant_schedule_extraction_response(
+                        session_id=session_id,
+                        message=message,
+                        extraction_text=message,
+                        started=started,
+                    )
+                except Exception as e:
+                    logger.exception("POST /assistant/chat schedule plan extraction failed session=%s", session_id)
+                    return AssistantChatResponse(
+                        session_id=session_id,
+                        action="error",
+                        reply="识别日程/待办失败，请稍后重试。",
+                        error=str(e),
+                    )
+            elif plan.action == "update_preference" and plan.preference_values:
+                status = app.state.agent.memory_manager.update_preferences(plan.preference_values, source="manual")
+                updated = {
+                    key: str(value)
+                    for key, value in status.get("preferences", {}).items()
+                    if key in plan.preference_values
+                }
+                reply = plan.reply or preference_reply(plan.preference_values)
+                if "Memory" not in reply and "memory" not in reply:
+                    reply = f"{reply} 已写入 Memory。"
+                _append_assistant_message(session_id, "user", message)
+                _append_assistant_message(session_id, "assistant", reply)
+                logger.info("POST /assistant/chat preference updated elapsed=%.2fs", time.monotonic() - started)
+                return AssistantChatResponse(
+                    session_id=session_id,
+                    action="preference_updated",
+                    reply=reply,
+                    updated_preferences=updated,
+                    action_plan=plan,
+                )
+            elif plan.action == "update_memory" and plan.memory_actions:
+                updates, requires_confirmation = _execute_memory_actions(plan)
+                if requires_confirmation:
+                    action = "clarify"
+                    reply = plan.reply or "这项 Memory 修改需要你确认后再写入。"
+                    if not reply.endswith("。"):
+                        reply += "。"
+                    reply += " 我还没有修改 soul.md。"
+                else:
+                    action = "chat"
+                    reply = plan.reply or "已写入 Memory。"
+                    if "Memory" not in reply and "memory" not in reply:
+                        reply = f"{reply} 已写入 Memory。"
+                _append_assistant_message(session_id, "user", message)
+                _append_assistant_message(session_id, "assistant", reply)
+                logger.info(
+                    "POST /assistant/chat memory updated count=%s confirm=%s elapsed=%.2fs",
+                    len(updates),
+                    requires_confirmation,
+                    time.monotonic() - started,
+                )
+                return AssistantChatResponse(
+                    session_id=session_id,
+                    action=action,
+                    reply=reply,
+                    action_plan=plan,
+                    memory_updates=updates,
+                )
+
+            if action == "review_candidates":
+                # Let the existing extraction path handle creation so preference memory,
+                # conflict status and multi-candidate review stay consistent.
+                pass
+            else:
+                _append_assistant_message(session_id, "user", message)
+                _append_assistant_message(session_id, "assistant", reply)
+                logger.info(
+                    "POST /assistant/chat plan action=%s plan=%s elapsed=%.2fs",
+                    action,
+                    plan.action,
+                    time.monotonic() - started,
+                )
+                return AssistantChatResponse(
+                    session_id=session_id,
+                    action=action,
+                    reply=reply,
+                    action_plan=plan,
+                )
+        except Exception as e:
+            logger.exception("POST /assistant/chat plan failed session=%s", session_id)
+            return AssistantChatResponse(
+                session_id=session_id,
+                action="error",
+                reply="我没能生成可执行的本地操作计划，请换个说法再试一次。",
+                error=str(e),
+            )
+
+    try:
+        history = _assistant_history(session_id)
+        messages = (history + [{"role": "user", "content": message}])[-20:]
+        reply = await app.state.active_provider.chat(
+            messages=messages,
+            system_prompt=assistant_system_prompt(app.state.agent.memory_manager.render_prompt_context()),
+        )
+        reply = (reply or "").strip() or "我没有生成有效回复。"
+        _append_assistant_message(session_id, "user", message)
+        _append_assistant_message(session_id, "assistant", reply)
+        logger.info("POST /assistant/chat done session=%s elapsed=%.2fs", session_id, time.monotonic() - started)
+        return AssistantChatResponse(session_id=session_id, action="chat", reply=reply)
+    except Exception as e:
+        logger.exception("POST /assistant/chat failed session=%s", session_id)
+        return AssistantChatResponse(
+            session_id=session_id,
+            action="error",
+            reply="对话失败，请稍后重试。",
+            error=str(e),
+        )
 
 
 @app.post("/heartbeat/tick", response_model=HeartbeatTickResponse)

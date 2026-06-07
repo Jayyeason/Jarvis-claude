@@ -18,6 +18,10 @@ extension ChatRequest {
 
 extension StoredAPIKey: Identifiable {}
 
+extension AppliedPreference: Identifiable {
+    var id: String { "\(field):\(value):\(source)" }
+}
+
 extension ModelSource: Identifiable {
     var id: String { "\(source):\(providerId ?? ""):\(modelId)" }
     var isLocal: Bool { source == "local" }

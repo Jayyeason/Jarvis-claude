@@ -331,4 +331,154 @@ If any file is missing, create it from the templates below before implementation
 - Files: Jarvis/UI/BatchReviewPanel.swift
 - Decision: Do not show the target Calendar field in event cards; keep event summary focused on time, location, alert and notes.
 - Next: Continue optimizing recognition latency; recent logs show model /chat dominates rather than OCR.
+### 2026-06-07 14:06:59 +0800 | milestone
+- Summary: Implemented preference memory loop with post-processing, applied preference UI prompts, and feedback-driven learning.
+- Files: Python/agent/memory.py, Python/agent/preferences.py, Python/agent/agent.py, Python/contracts.py, Python/gateway.py, Jarvis/UI/BatchReviewPanel.swift, Jarvis/Models/GeneratedContracts.swift, Jarvis/NativeActions/MapKitTool.swift
+- Decision: Keep session memory in-process; persist only structured preference memory in ~/.jarvis/memory.json and apply stable preferences after LLM extraction before Swift review.
+- Next: Restart Jarvis and test scenarios with learned/manual reminder time and alert preferences.
+### 2026-06-07 14:21:25 +0800 | milestone
+- Summary: Implemented floating-window assistant chat entry with /assistant/chat, preference command parsing, schedule handoff to batch review, and transient chat UI.
+- Files: Python/agent/assistant_chat.py, Python/gateway.py, Python/contracts.py, Jarvis/UI/AssistantChatPanel.swift, Jarvis/Commands/AssistantChatWindowManager.swift, Jarvis/UI/IslandCapsuleView.swift
+- Decision: Replace the island ellipsis entry with a chat icon; preference commands update memory directly, while schedule/reminder creation still opens the existing review cards before write.
+- Next: Restart Jarvis and test island chat for casual chat, preference updates, and schedule/reminder creation.
+### 2026-06-07 14:41:18 +0800 | milestone
+- Summary: Added assistant chat action planning contracts and planner tests for list/delete/reschedule local actions.
+- Files: Python/contracts.py,Python/agent/assistant_chat.py,Python/gateway.py,Python/tests/test_agent_components.py,Jarvis/Models/GeneratedContracts.swift
+- Decision: LLM plans local operations via JSON chat; Swift executes EventKit actions after confirmation.
+- Next: Finish Swift chat UI execution and build verification.
+### 2026-06-07 14:42:30 +0800 | milestone
+- Summary: Implemented assistant chat local operations: intro copy, list summaries, delete/reschedule confirmation cards, EventKit query/delete/update execution, and batch write result callbacks.
+- Files: Jarvis/UI/AssistantChatPanel.swift,Jarvis/NativeActions/EventKitTool.swift,Jarvis/UI/BatchReviewPanel.swift,Jarvis/Commands/BatchReviewWindowManager.swift,Jarvis/Commands/AssistantChatWindowManager.swift,Jarvis/App/HeartbeatManager.swift
+- Decision: Delete/reschedule require both date range and target keyword plus user confirmation before EventKit mutation.
+- Next: Manual runtime test with chat examples after restarting Jarvis.
+### 2026-06-07 14:54:07 +0800 | milestone
+- Summary: Fixed Jarvis-created Calendar/Reminder containers: EventKit now creates/uses Jarvis calendar and Jarvis reminder list, independent of user preferences.
+- Files: Jarvis/NativeActions/EventKitTool.swift,Jarvis/UI/BatchReviewPanel.swift,Jarvis/Models/RecognitionResult.swift,Python/agent/memory.py,Python/agent/preferences.py,Python/agent/prompts.py,Python/contracts.py,Python/agent/result.py,Python/agent/validator.py,Python/agent/tools.py,Python/tests/test_agent_components.py
+- Decision: Calendar/reminder container is a fixed Jarvis group, not a preference; reminder/time preferences remain learnable.
+- Next: Manual runtime test: create one event and one reminder, verify iCloud Jarvis calendar/list are created and used.
+### 2026-06-07 15:22:34 +0800 | milestone
+- Summary: Changed creation targets from Jarvis containers to system default calendar and Reminders list named 提醒事项; assistant chat now auto-writes one ready text candidate without confirmation.
+- Files: Jarvis/NativeActions/EventKitTool.swift,Jarvis/UI/AssistantChatPanel.swift,Python/agent/prompts.py,Python/agent/result.py,Python/agent/validator.py,Python/agent/tools.py,Python/contracts.py
+- Decision: Direct auto-write is limited to one ready candidate from assistant chat text; conflicts/missing info/multi-candidate flows still use review cards.
+- Next: Restart Jarvis and manually test chat creation into 事项/提醒事项.
+### 2026-06-07 15:28:22 +0800 | milestone
+- Summary: Fixed assistant chat extraction context leak: each text creation now uses a unique agent session, and terminal feedback clears pending agent sessions.
+- Files: Python/gateway.py,Jarvis/UI/AssistantChatPanel.swift,Python/tests/test_agent_components.py
+- Decision: Normal assistant chat messages are independent creation requests; only review-card followups use the agent session returned by the candidate response.
+- Next: Restart Jarvis and verify a completed reminder is not re-mentioned in the next chat creation.
+### 2026-06-07 15:54:05 +0800 | milestone
+- Summary: Fixed reminder due time handling for assistant chat auto-write: due_date plus due_time now merges for display and datetime due_date normalizes into dueTime for EventKit writes.
+- Files: Jarvis/Models/RecognitionResult.swift,Jarvis/UI/AssistantChatPanel.swift,Jarvis/NativeActions/EventKitTool.swift
+- Decision: Pure date reminders remain date-only; explicit due_time or datetime due_date is shown and written with hour/minute.
+- Next: Restart Jarvis and test 今天晚上8点/7点提醒 writes display 20:00/19:00.
+### 2026-06-07 16:03:25 +0800 | milestone
+- Summary: Added assistant chat update_alert operation for existing calendar/reminder alerts; alert changes execute directly without review-card replacement.
+- Files: Python/contracts.py,Python/agent/assistant_chat.py,Python/gateway.py,Jarvis/UI/AssistantChatPanel.swift,Jarvis/NativeActions/EventKitTool.swift,Jarvis/Models/GeneratedContracts.swift
+- Decision: Phrases like 今晚9点的开会提前20min提醒我 are local alert updates, not new schedule extraction and not event rescheduling; target time_of_day filters matches.
+- Next: Restart Jarvis and test modifying a 21:00 event to提前20分钟提醒.
+### 2026-06-07 16:16:09 +0800 | milestone
+- Summary: Improved assistant chat modification success summaries and list item icons.
+- Files: Jarvis/UI/AssistantChatPanel.swift
+- Decision: List output uses emoji icons while operation cards keep SF Symbols to avoid duplicate icons.
+- Next: None
+### 2026-06-07 16:22:02 +0800 | milestone
+- Summary: Fixed assistant chat intent routing so new calendar/reminder requests with alert offsets are not treated as existing alert updates.
+- Files: Python/agent/assistant_chat.py, Python/tests/test_agent_components.py
+- Decision: Creation requests like '明天下午3点开会，持续1小时，提前30min提醒我' bypass local operation planning and enter schedule extraction; existing targets like '今晚9点的开会提前20min提醒我' remain update_alert.
+- Next: Restart gateway/app before retesting chat routing.
+### 2026-06-07 16:26:35 +0800 | milestone
+- Summary: Enabled text selection in the assistant chat message list so conversation text can be copied.
+- Files: Jarvis/UI/AssistantChatPanel.swift
+- Decision: Applied SwiftUI textSelection at the message list level so bubbles, list output, and operation card text inherit selectable text.
+- Next: Restart app/gateway and verify selecting chat text with mouse drag and Cmd+C.
+### 2026-06-07 16:36:24 +0800 | milestone
+- Summary: Fixed assistant chat local-operation routing for implicit list queries and clarification follow-ups.
+- Files: Python/agent/assistant_chat.py, Python/gateway.py, Python/tests/test_agent_components.py
+- Decision: Implicit queries like '最近2天的日程和待办' and clarification answers like '未来2天' now route to list_items with deterministic fallback instead of ordinary chat.
+- Next: Restart gateway/app before retesting assistant chat list queries.
+### 2026-06-07 16:40:22 +0800 | milestone
+- Summary: Fixed slash-separated calendar/reminder list query keyword cleanup.
+- Files: Python/agent/assistant_chat.py, Python/tests/test_agent_components.py
+- Decision: Queries like '查看未来2天的日程/提醒事项' route to list_items with item_kind=both, future 2-day date range, and no title keyword filter.
+- Next: Restart gateway/app before retesting this exact phrase.
+### 2026-06-07 16:44:30 +0800 | milestone
+- Summary: Added stable /list assistant chat command for local calendar/reminder list queries.
+- Files: Python/agent/assistant_chat.py, Python/tests/test_agent_components.py
+- Decision: /list queries route to list_items, default to calendar+reminders when no kind is specified, and strip command/separator words from title keywords.
+- Next: Restart gateway/app before retesting /list queries.
+### 2026-06-07 16:49:16 +0800 | milestone
+- Summary: Changed assistant list queries to always include both calendar events and reminders.
+- Files: Python/agent/assistant_chat.py, Python/tests/test_agent_components.py
+- Decision: For action=list_items, item_kind is forced to both even if the user says only 日程 or only 待办/提醒事项; Chinese day counts like 两天 are parsed deterministically.
+- Next: Restart gateway/app before retesting list queries.
+### 2026-06-07 17:25:20 +0800 | milestone
+- Summary: Implemented grouped assistant list output with alert reminder summaries and Markdown rendering.
+- Files: Python/contracts.py, Jarvis/Models/GeneratedContracts.swift, Jarvis/NativeActions/EventKitTool.swift, Jarvis/App/HeartbeatManager.swift, Jarvis/UI/AssistantChatPanel.swift
+- Decision: List output groups items into 今天/明天/一周内/更晚/未定时间, includes alert labels, and assistant messages render Markdown while retaining selectable text.
+- Next: Restart gateway/app and verify /list output with calendar events and reminders.
+### 2026-06-07 17:44:01 +0800 | milestone
+- Summary: Fixed assistant chat list rendering and local operation routing for schedule creation/reschedule/update-alert cases.
+- Files: Jarvis/UI/AssistantChatPanel.swift,Jarvis/NativeActions/EventKitTool.swift,Python/agent/assistant_chat.py,Python/contracts.py,Jarvis/Models/GeneratedContracts.swift,Python/tests/test_agent_components.py
+- Decision: New schedule requests bypass local update routing; list output is grouped by time buckets with one item per line; target time_period is part of the Swift/Python contract.
+- Next: Restart Jarvis and test assistant chat with /list, new schedule creation, and reschedule/update-alert phrases.
+### 2026-06-07 17:57:37 +0800 | milestone
+- Summary: Fixed assistant chat route so explicit add/new schedule requests with alert text create candidates instead of updating existing alerts.
+- Files: Python/agent/assistant_chat.py,Python/tests/test_agent_components.py
+- Decision: Explicit create verbs such as 添加/新建/创建/写入/安排 take precedence over existing update_alert detection.
+- Next: Restart Jarvis gateway/app and retest adding a schedule from assistant chat.
+### 2026-06-07 18:06:35 +0800 | milestone
+- Summary: Adjusted assistant chat routing so only slash-list uses deterministic local planning; create/update/delete/preference requests now go through LLM extraction or planner before Swift executes local tools.
+- Files: Python/gateway.py,Python/agent/assistant_chat.py,Python/tests/test_agent_components.py
+- Decision: Use is_schedule_creation_request for extraction; is_schedule_request remains broad and is no longer the gateway creation route. Non-/list operation heuristics are routing hints only, not planner fallbacks.
+- Next: Restart gateway/app and test /list, natural list, create schedule, update alert, and preference update from assistant chat.
+### 2026-06-07 18:12:34 +0800 | milestone
+- Summary: Improved assistant chat creation flow: complete single ready candidates auto-write without extra confirmation, and contextual replies like 确认添加 reuse prior creation context for extraction instead of falling into normal chat.
+- Files: Python/gateway.py,Python/agent/assistant_chat.py,Python/tests/test_agent_components.py
+- Decision: Keep conflict/missing-info review cards, but complete no-conflict single candidate writes directly via existing Swift auto-write path.
+- Next: Restart Jarvis and retest direct schedule creation plus confirmation-add follow-up.
+### 2026-06-07 18:17:19 +0800 | milestone
+- Summary: Changed assistant chat candidate handling so missing-info follow-up stays inside the chat window; BatchReview/right-side cards are no longer opened from AssistantChatPanel and remain for screenshot recognition flows.
+- Files: Jarvis/UI/AssistantChatPanel.swift,Python/tests/test_agent_components.py
+- Decision: Chat-created candidates use the existing /chat follow-up session with selected_candidate_ids; complete single candidates auto-write, missing info asks in chat, conflict/multiple candidates are reported in chat.
+- Next: Restart Jarvis and test chat creation with missing time/duration plus screenshot recognition to confirm right-side cards still appear only for screenshots.
+### 2026-06-07 18:21:24 +0800 | milestone
+- Summary: Applied system calendar defaults during preference post-processing: missing event duration defaults to 60 minutes and missing calendar alert defaults to 10 minutes, while explicit user values and learned/manual memory preferences override defaults.
+- Files: Python/agent/preferences.py,Python/agent/prompts.py,Python/tests/test_agent_components.py
+- Decision: Calendar defaults are always effective; reminder due_time/alert still require stable explicit/learned preferences to avoid inventing date-only reminder times.
+- Next: Restart Jarvis and test creating a calendar event with no duration/alert, with explicit duration/alert, and after learned preference promotion.
+### 2026-06-07 18:54:37 +0800 | milestone
+- Summary: Implemented menu-bar Memory editor for soul/user/heartbeat plus read-only wal with Gateway file APIs
+- Files: Python/agent/memory.py,Python/contracts.py,Python/gateway.py,Python/tests/test_agent_components.py,Jarvis/Commands/JarvisCommands.swift,Jarvis/Commands/MemoryWindowManager.swift,Jarvis/UI/MemoryPanel.swift,Jarvis/Gateway/GatewayClient.swift,Jarvis/Models/GeneratedContracts.swift
+- Decision: Expose only whitelisted memory files; user.md markdown affects prompt but is not parsed into structured preferences
+- Next: Manual runtime test via 记忆 > 管理 Memory after restarting Jarvis
+### 2026-06-07 22:47:30 +0800 | milestone
+- Summary: Synced chat preference updates into user.md and added Markdown preview/edit mode to Memory panel
+- Files: Python/agent/memory.py,Python/agent/assistant_chat.py,Python/gateway.py,Python/tests/test_agent_components.py,Jarvis/UI/MemoryPanel.swift
+- Decision: Structured preferences remain source of truth; user.md preference section is generated for visibility and prompt context; Memory panel defaults to Markdown preview
+- Next: Manual runtime test Assistant Chat preference update then reload user.md in Memory window
+### 2026-06-07 22:51:54 +0800 | milestone
+- Summary: Fixed Memory panel Markdown preview block rendering and expanded sidebar row hit areas
+- Files: Jarvis/UI/MemoryPanel.swift
+- Decision: Render Markdown blocks manually for headings/lists/paragraphs instead of a single inline AttributedString; keep wal.jsonl raw
+- Next: Manual runtime check Memory window selection and preview rendering
+### 2026-06-07 23:44:03 +0800 | milestone
+- Summary: Implemented memory preference title migration, chat-updatable default reminder preferences, /cron command routing, heartbeat cron task storage, and island-only cron reminders.
+- Files: Python/agent/memory.py,Python/agent/assistant_chat.py,Python/agent/cron_memory.py,Python/agent/heartbeat.py,Python/gateway.py,Jarvis/App/HeartbeatManager.swift,Python/tests/test_agent_components.py
+- Decision: /cron natural-language creation uses the active LLM; /cron-list, /cron-help, and /cron-delete are deterministic; cron reminders emit trigger_type=cron_reminder and skip macOS notifications.
+- Next: None
+### 2026-06-07 23:51:32 +0800 | milestone
+- Summary: Fixed cron creation failure when croniter is missing by adding fallback 5-field cron validation/previous-time calculation; made deterministic preference parsing override incomplete LLM update_preference plans.
+- Files: Python/agent/cron_memory.py,Python/agent/heartbeat.py,Python/agent/assistant_chat.py,Python/tests/test_agent_components.py
+- Decision: Cron still prefers croniter when installed but no longer fails for standard expressions like 49 23 * * * if croniter is unavailable; explicit parsed default reminder preferences override model-provided partial preference_values.
+- Next: None
+### 2026-06-08 00:16:20 +0800 | milestone
+- Summary: Implemented controlled LLM-driven memory actions for assistant chat: update_memory planner action, AssistantMemoryAction contracts, user profile/long-term memory helpers, and gateway execution.
+- Files: Python/contracts.py,Python/agent/assistant_chat.py,Python/agent/memory.py,Python/gateway.py,Python/tests/test_agent_components.py,Jarvis/Models/GeneratedContracts.swift
+- Decision: Use internal controlled memory tools instead of provider-level function calling for v1; low-risk user.md updates auto-write, soul.md changes return confirmation proposals without file mutation.
+- Next: None
+### 2026-06-08 00:24:26 +0800 | milestone
+- Summary: Improved cron assistant replies with Markdown formatting, human-readable cron descriptions, and Swift chat Markdown rendering.
+- Files: Python/agent/cron_memory.py,Python/gateway.py,Jarvis/UI/AssistantChatPanel.swift,Python/tests/test_agent_components.py
+- Decision: Cron replies show user-facing schedule text plus raw cron/id as secondary inline-code metadata; assistant chat renders Markdown via AttributedString.
+- Next: None
 

@@ -10,6 +10,7 @@ import httpx
 
 from contracts import HeartbeatTickRequest, HeartbeatTickResponse, ProactiveEvent
 
+from .cron_memory import previous_cron_time, read_cron_tasks
 from .memory import MemoryManager
 
 
@@ -99,25 +100,16 @@ class HeartbeatEngine:
         return [self._event(action_id, "preparation_reminder", "明日准备", f"明天有 {names}{extra}，建议今晚确认材料和出行安排。")]
 
     def _cron_rules(self, now: datetime) -> list[ProactiveEvent]:
-        try:
-            from croniter import croniter
-        except Exception:
-            return []
-
         out = []
-        for idx, line in enumerate(self.memory.read_heartbeat_rules().splitlines()):
-            if "cron:" not in line:
-                continue
+        for task in read_cron_tasks(self.memory):
             try:
-                _, rest = line.split("cron:", 1)
-                expr, title, body = [part.strip(" -|") for part in rest.split("|", 2)]
-                previous = croniter(expr, now).get_prev(datetime)
+                previous = previous_cron_time(task.cron_expr, now + timedelta(seconds=1))
                 if 0 <= (now - previous).total_seconds() <= 65:
-                    action_id = f"cron:{idx}:{previous.isoformat(timespec='minutes')}"
+                    action_id = f"cron:{task.id}:{previous.isoformat(timespec='minutes')}"
                     if not self._seen(action_id):
-                        out.append(self._event(action_id, "recurring_rule", title or "周期提醒", body or title))
+                        out.append(self._event(action_id, "cron_reminder", task.title or "周期提醒", task.body or task.title))
             except Exception as exc:
-                self.memory.append_error("cron_rule_failed", {"line": line, "error": str(exc)})
+                self.memory.append_error("cron_rule_failed", {"line": task.raw_line, "error": str(exc)})
         return out
 
     def _weekly_consolidation(self, now: datetime) -> list[ProactiveEvent]:

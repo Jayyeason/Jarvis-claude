@@ -10,7 +10,7 @@ class BatchReviewWindowManager {
     private var isClosing = false
     private let windowSize = NSSize(width: 440, height: 460)
 
-    func open(response: AgentResponse) {
+    func open(response: AgentResponse, onCandidateResolved: ((BatchReviewResult) -> Void)? = nil) {
         if let window {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -19,6 +19,7 @@ class BatchReviewWindowManager {
 
         let content = BatchReviewPanel(
             response: response,
+            onCandidateResolved: onCandidateResolved,
             onClose: { [weak self] in self?.close() }
         )
         let window = KeyableBorderlessWindow(

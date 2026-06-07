@@ -7,6 +7,7 @@ from uuid import uuid4
 from providers.base import BaseProvider
 
 from .memory import MemoryManager
+from .preferences import PreferenceEngine
 from .prompts import build_system_prompt
 from .tools import get_anthropic_tools, get_openai_tools
 from .validator import AgentValidationError, validate_agent_result
@@ -20,6 +21,7 @@ MAX_VALIDATION_ATTEMPTS = 3
 class JarvisAgent:
     def __init__(self, memory_manager: Optional[MemoryManager] = None):
         self.memory_manager = memory_manager or MemoryManager()
+        self.preference_engine = PreferenceEngine(self.memory_manager)
         self.sessions: dict[str, dict] = {}
 
     async def run(
@@ -99,6 +101,8 @@ class JarvisAgent:
                 result = validate_agent_result(raw_result)
                 if is_followup and selected_candidate_ids:
                     result = self._merge_followup_result(pending_session, result, selected_candidate_ids)
+                result = self.preference_engine.apply(result, user_text)
+                result = validate_agent_result(result)
                 result["session_id"] = session_id
                 self._remember_session(session_id, result)
                 if attempt > 1:

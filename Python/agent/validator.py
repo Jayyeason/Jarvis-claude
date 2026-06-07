@@ -70,6 +70,7 @@ def _validate_batch(result: dict[str, Any]) -> None:
         candidate.setdefault("missing_fields", [])
         candidate.setdefault("clarification_question", None)
         candidate.setdefault("conflicts", [])
+        candidate.setdefault("applied_preferences", [])
         if kind == "calendar":
             _validate_calendar_candidate(candidate)
         else:
@@ -169,6 +170,8 @@ def _validate_reminder_candidate(candidate: dict[str, Any]) -> None:
         _parse_time(due_time, "reminder due_time")
     else:
         payload["due_time"] = None
+        if isinstance(due_date, str) and due_date.strip() and "T" not in due_date:
+            missing.add("time")
 
     priority = payload.get("priority", "none")
     if priority not in VALID_PRIORITIES:

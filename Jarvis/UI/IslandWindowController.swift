@@ -19,6 +19,7 @@ class IslandWindowController {
     var onCaptureRequested: (() -> Void)?
     var onSettingsRequested: (() -> Void)?
     var onTaskListRequested: (() -> Void)?
+    var onAssistantChatRequested: (() -> Void)?
 
     // MARK: - Notch geometry
 
@@ -196,6 +197,7 @@ class IslandWindowController {
             notchHeight: nr.height,
             onCapture: { [weak self] in self?.onCaptureRequested?() },
             onTaskList: { [weak self] in self?.onTaskListRequested?() },
+            onAssistantChat: { [weak self] in self?.onAssistantChatRequested?() },
             onSettings: { [weak self] in self?.onSettingsRequested?() },
             onOpenBatchReview: { [weak self] in
                 guard let response = self?.pendingResponse else { return }

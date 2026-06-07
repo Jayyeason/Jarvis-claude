@@ -94,6 +94,7 @@ def _calendar_candidate(args: dict, idx: int, meta: dict | None = None) -> dict:
         "clarification_question": meta.get("clarification_question"),
         "conflicts": [],
         "status": "ready",
+        "applied_preferences": [],
     }
 
 
@@ -122,4 +123,5 @@ def _reminder_candidate(args: dict, idx: int, meta: dict | None = None) -> dict:
         "clarification_question": meta.get("clarification_question"),
         "conflicts": [],
         "status": "ready",
+        "applied_preferences": [],
     }

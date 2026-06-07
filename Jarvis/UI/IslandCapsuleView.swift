@@ -11,6 +11,7 @@ struct IslandCapsuleView: View {
     let notchHeight: CGFloat
     let onCapture: () -> Void
     let onTaskList: () -> Void
+    let onAssistantChat: () -> Void
     let onSettings: () -> Void
     let onOpenBatchReview: () -> Void
     let onConfirmSuccess: () -> Void
@@ -103,7 +104,7 @@ struct IslandCapsuleView: View {
             divider
             ModelSwitchButton()
             divider
-            IslandMoreMenuButton()
+            CapsuleButton(icon: "bubble.left.and.bubble.right", label: nil, help: "对话", action: onAssistantChat)
         }
         .padding(.horizontal, 4)
     }
@@ -697,6 +698,7 @@ private struct InlineField<Content: View>: View {
 private struct CapsuleButton: View {
     let icon: String
     let label: String?
+    var help: String? = nil
     let action: () -> Void
     @State private var isHovered = false
 
@@ -713,6 +715,7 @@ private struct CapsuleButton: View {
                 .fill(isHovered ? Color.white.opacity(0.12) : Color.clear))
         }
         .buttonStyle(.plain)
+        .help(help ?? "")
         .onHover { isHovered = $0 }
     }
 }

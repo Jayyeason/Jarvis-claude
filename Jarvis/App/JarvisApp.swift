@@ -33,6 +33,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let anchorRect = IslandWindowController.shared.currentPanelFrame
             TaskListWindowManager.shared.toggle(anchorRect: anchorRect)
         }
+        island.onAssistantChatRequested = {
+            let anchorRect = IslandWindowController.shared.currentPanelFrame
+            AssistantChatWindowManager.shared.toggle(anchorRect: anchorRect)
+        }
         island.setup()
 
         // Wire capture callbacks

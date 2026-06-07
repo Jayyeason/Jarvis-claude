@@ -127,25 +127,35 @@ class LocationMemoryStore {
 
 private struct JarvisMemory: Codable {
     var preferences: [String: JSONValue] = [:]
+    var preferenceMeta: [String: JSONValue] = [:]
+    var preferenceStats: [String: JSONValue] = [:]
     var locationAliases: [String: LocationAlias] = [:]
 
     enum CodingKeys: String, CodingKey {
         case preferences
+        case preferenceMeta = "preference_meta"
+        case preferenceStats = "preference_stats"
         case locationAliases = "location_aliases"
     }
 }
 
-private enum JSONValue: Codable {
+private indirect enum JSONValue: Codable {
     case string(String)
     case int(Int)
     case double(Double)
     case bool(Bool)
+    case object([String: JSONValue])
+    case array([JSONValue])
     case null
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self = .null
+        } else if let value = try? container.decode([String: JSONValue].self) {
+            self = .object(value)
+        } else if let value = try? container.decode([JSONValue].self) {
+            self = .array(value)
         } else if let value = try? container.decode(Bool.self) {
             self = .bool(value)
         } else if let value = try? container.decode(Int.self) {
@@ -164,6 +174,8 @@ private enum JSONValue: Codable {
         case .int(let value): try container.encode(value)
         case .double(let value): try container.encode(value)
         case .bool(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
+        case .array(let value): try container.encode(value)
         case .null: try container.encodeNil()
         }
     }
@@ -174,6 +186,8 @@ private enum JSONValue: Codable {
         case .int(let value): return String(value)
         case .double(let value): return String(value)
         case .bool(let value): return value ? "true" : "false"
+        case .object: return "{...}"
+        case .array: return "[...]"
         case .null: return "null"
         }
     }

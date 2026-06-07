@@ -44,7 +44,7 @@ CALENDAR_SCHEMA = {
         "recurrence": RECURRENCE_SCHEMA,
         "travel_time_minutes": {"type": "integer", "minimum": 0, "description": "行程时间分钟数，无则省略"},
         "alert_minutes_before_start": {"type": "integer", "minimum": 0, "description": "开始前多少分钟提醒，默认 10"},
-        "calendar_name": {"type": "string", "description": "目标日历名称，缺省使用系统默认日历"},
+        "calendar_name": {"type": "string", "description": "目标日历名称；通常省略，系统写入 macOS 系统默认日历"},
         "url": {"type": "string", "description": "相关链接，如 Zoom / Teams / 课程页面"},
     },
 }
@@ -59,7 +59,7 @@ REMINDER_SCHEMA = {
         "due_time": {"type": "string", "description": "到期时间 HH:MM，识别不到则省略"},
         "recurrence": RECURRENCE_SCHEMA,
         "alert_minutes_before_due": {"type": "integer", "minimum": 0, "description": "到期前多少分钟提醒"},
-        "list_name": {"type": "string", "description": "目标提醒列表名称，默认 提醒事项"},
+        "list_name": {"type": "string", "description": "目标提醒列表名称，默认“提醒事项”；系统写入提醒事项列表"},
         "priority": {
             "type": "string",
             "description": "优先级，默认 none",

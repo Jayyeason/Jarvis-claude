@@ -353,6 +353,14 @@ struct ConflictInfo: Codable {
     }
 }
 
+struct AppliedPreference: Codable {
+    var field: String
+    var value: String
+    var label: String
+    var source: String
+    var message: String
+}
+
 struct RecognitionCandidate: Codable {
     var id: String
     var kind: String
@@ -364,6 +372,7 @@ struct RecognitionCandidate: Codable {
     var clarificationQuestion: String?
     var conflicts: [ConflictInfo]?
     var status: String?
+    var appliedPreferences: [AppliedPreference]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -376,6 +385,7 @@ struct RecognitionCandidate: Codable {
         case clarificationQuestion = "clarification_question"
         case conflicts
         case status
+        case appliedPreferences = "applied_preferences"
     }
 }
 
@@ -403,6 +413,104 @@ struct ChatRequest: Codable {
     }
 }
 
+struct AssistantChatRequest: Codable {
+    var message: String?
+    var sessionId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case message
+        case sessionId = "session_id"
+    }
+}
+
+struct AssistantDateRange: Codable {
+    var startDate: String?
+    var endDate: String?
+    var label: String?
+
+    enum CodingKeys: String, CodingKey {
+        case startDate = "start_date"
+        case endDate = "end_date"
+        case label
+    }
+}
+
+struct AssistantActionTarget: Codable {
+    var itemKind: String?
+    var titleKeywords: [String]?
+    var dateRange: AssistantDateRange?
+    var timeOfDay: String?
+    var timePeriod: String?
+    var rawText: String?
+
+    enum CodingKeys: String, CodingKey {
+        case itemKind = "item_kind"
+        case titleKeywords = "title_keywords"
+        case dateRange = "date_range"
+        case timeOfDay = "time_of_day"
+        case timePeriod = "time_period"
+        case rawText = "raw_text"
+    }
+}
+
+struct AssistantOperationPatch: Codable {
+    var shiftMinutes: Int?
+    var alertMinutesBefore: Int?
+    var newStartTime: String?
+    var newEndTime: String?
+    var newDueDate: String?
+    var newDueTime: String?
+    var title: String?
+    var location: String?
+
+    enum CodingKeys: String, CodingKey {
+        case shiftMinutes = "shift_minutes"
+        case alertMinutesBefore = "alert_minutes_before"
+        case newStartTime = "new_start_time"
+        case newEndTime = "new_end_time"
+        case newDueDate = "new_due_date"
+        case newDueTime = "new_due_time"
+        case title
+        case location
+    }
+}
+
+struct AssistantMemoryAction: Codable {
+    var tool: String
+    var arguments: [String: String]?
+    var confidence: Double?
+    var requiresConfirmation: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case tool
+        case arguments
+        case confidence
+        case requiresConfirmation = "requires_confirmation"
+    }
+}
+
+struct AssistantActionPlan: Codable {
+    var action: String
+    var reply: String?
+    var clarificationQuestion: String?
+    var target: AssistantActionTarget?
+    var patch: AssistantOperationPatch?
+    var preferenceValues: [String: String]?
+    var memoryActions: [AssistantMemoryAction]?
+    var confirmationRequired: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case action
+        case reply
+        case clarificationQuestion = "clarification_question"
+        case target
+        case patch
+        case preferenceValues = "preference_values"
+        case memoryActions = "memory_actions"
+        case confirmationRequired = "confirmation_required"
+    }
+}
+
 struct AgentResponse: Codable {
     var type: String
     var sessionId: String?
@@ -423,6 +531,28 @@ struct AgentResponse: Codable {
     }
 }
 
+struct AssistantChatResponse: Codable {
+    var sessionId: String
+    var reply: String
+    var action: String
+    var agentResponse: AgentResponse?
+    var actionPlan: AssistantActionPlan?
+    var updatedPreferences: [String: String]?
+    var memoryUpdates: [[String: String]]?
+    var error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
+        case reply
+        case action
+        case agentResponse = "agent_response"
+        case actionPlan = "action_plan"
+        case updatedPreferences = "updated_preferences"
+        case memoryUpdates = "memory_updates"
+        case error
+    }
+}
+
 struct CalendarEventSnapshot: Codable {
     var id: String
     var title: String
@@ -430,6 +560,8 @@ struct CalendarEventSnapshot: Codable {
     var endTime: String
     var isAllDay: Bool?
     var location: String?
+    var calendarName: String?
+    var alertMinutesBeforeStart: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -438,22 +570,30 @@ struct CalendarEventSnapshot: Codable {
         case endTime = "end_time"
         case isAllDay = "is_all_day"
         case location
+        case calendarName = "calendar_name"
+        case alertMinutesBeforeStart = "alert_minutes_before_start"
     }
 }
 
 struct ReminderSnapshot: Codable {
     var id: String
     var title: String
+    var dueDate: String?
     var dueTime: String?
     var isCompleted: Bool?
     var priority: Int?
+    var listName: String?
+    var alertMinutesBeforeDue: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
         case title
+        case dueDate = "due_date"
         case dueTime = "due_time"
         case isCompleted = "is_completed"
         case priority
+        case listName = "list_name"
+        case alertMinutesBeforeDue = "alert_minutes_before_due"
     }
 }
 
@@ -511,23 +651,115 @@ struct MemoryStatus: Codable {
     }
 }
 
+struct MemoryFile: Codable {
+    var id: String
+    var filename: String
+    var title: String
+    var editable: Bool
+    var content: String?
+    var truncated: Bool?
+    var byteSize: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case filename
+        case title
+        case editable
+        case content
+        case truncated
+        case byteSize = "byte_size"
+    }
+}
+
+struct MemoryFilesResponse: Codable {
+    var files: [MemoryFile]?
+}
+
+struct MemoryFileUpdateRequest: Codable {
+    var content: String
+}
+
+struct MemoryFileUpdateResponse: Codable {
+    var file: MemoryFile
+}
+
+struct PreferenceMeta: Codable {
+    var source: String?
+    var confidence: Double?
+    var observations: Int?
+    var updatedAt: String?
+    var cleared: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case source
+        case confidence
+        case observations
+        case updatedAt = "updated_at"
+        case cleared
+    }
+}
+
+struct PreferenceStatValue: Codable {
+    var count: Int?
+    var sessions: [String]?
+    var lastSeen: String?
+
+    enum CodingKeys: String, CodingKey {
+        case count
+        case sessions
+        case lastSeen = "last_seen"
+    }
+}
+
+struct MemoryPreferencesResponse: Codable {
+    var preferences: [String: String]
+    var preferenceMeta: [String: PreferenceMeta]?
+    var preferenceStats: [String: [String: PreferenceStatValue]]?
+
+    enum CodingKeys: String, CodingKey {
+        case preferences
+        case preferenceMeta = "preference_meta"
+        case preferenceStats = "preference_stats"
+    }
+}
+
+struct MemoryPreferencesPatch: Codable {
+    var calendarDefaultDurationMinutes: Int?
+    var calendarDefaultAlertMinutes: Int?
+    var reminderDefaultAlertMinutes: Int?
+    var reminderDefaultDueTime: String?
+    var reminderDefaultPriorityForDeadline: String?
+
+    enum CodingKeys: String, CodingKey {
+        case calendarDefaultDurationMinutes = "calendar_default_duration_minutes"
+        case calendarDefaultAlertMinutes = "calendar_default_alert_minutes"
+        case reminderDefaultAlertMinutes = "reminder_default_alert_minutes"
+        case reminderDefaultDueTime = "reminder_default_due_time"
+        case reminderDefaultPriorityForDeadline = "reminder_default_priority_for_deadline"
+    }
+}
+
 struct MemoryFeedbackRequest: Codable {
     var action: String
+    var sessionId: String?
     var candidateId: String?
     var candidateKind: String?
     var title: String?
     var status: String?
     var modified: Bool?
     var note: String?
+    var finalCandidate: RecognitionCandidate?
 
     enum CodingKeys: String, CodingKey {
         case action
+        case sessionId = "session_id"
         case candidateId = "candidate_id"
         case candidateKind = "candidate_kind"
         case title
         case status
         case modified
         case note
+        case finalCandidate = "final_candidate"
     }
 }
 

@@ -9,7 +9,7 @@ struct JarvisCommands: Commands {
             .keyboardShortcut("j", modifiers: [.command, .shift])
 
             Button("新建对话") {
-                CaptureManager.shared.capture()
+                AssistantChatWindowManager.shared.toggle(anchorRect: IslandWindowController.shared.currentPanelFrame)
             }
             .keyboardShortcut("n", modifiers: .command)
         }
@@ -21,6 +21,12 @@ struct JarvisCommands: Commands {
 
             Button("配置云端 API...") {
                 APISettingsWindowManager.shared.open()
+            }
+        }
+
+        CommandMenu("记忆") {
+            Button("管理 Memory...") {
+                MemoryWindowManager.shared.open()
             }
         }
     }

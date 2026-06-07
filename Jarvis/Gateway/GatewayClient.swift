@@ -92,6 +92,10 @@ actor GatewayClient {
         }
     }
 
+    func assistantChat(_ req: AssistantChatRequest) async throws -> AssistantChatResponse {
+        try await postJSON(path: ["assistant", "chat"], body: req, timeout: 60)
+    }
+
     func getAvailableModels() async throws -> AvailableModelsResponse {
         try await getJSON(path: ["models", "available"])
     }
@@ -138,6 +142,26 @@ actor GatewayClient {
         try await getJSON(path: ["memory"], timeout: 10)
     }
 
+    func memoryFiles() async throws -> MemoryFilesResponse {
+        try await getJSON(path: ["memory", "files"], timeout: 10)
+    }
+
+    func updateMemoryFile(fileId: String, content: String) async throws -> MemoryFileUpdateResponse {
+        try await putJSON(
+            path: ["memory", "files", fileId],
+            body: MemoryFileUpdateRequest(content: content),
+            timeout: 10
+        )
+    }
+
+    func memoryPreferences() async throws -> MemoryPreferencesResponse {
+        try await getJSON(path: ["memory", "preferences"], timeout: 10)
+    }
+
+    func updateMemoryPreferences(_ req: MemoryPreferencesPatch) async throws -> MemoryPreferencesResponse {
+        try await patchJSON(path: ["memory", "preferences"], body: req, timeout: 10)
+    }
+
     func memoryFeedback(_ req: MemoryFeedbackRequest) async throws {
         let _: MemoryFeedbackResponse = try await postJSON(path: ["memory", "feedback"], body: req, timeout: 10)
     }
@@ -173,6 +197,40 @@ actor GatewayClient {
     ) async throws -> Response {
         var request = URLRequest(url: endpoint(path))
         request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(body)
+        request.timeoutInterval = timeout
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw GatewayError.modelActionFailed(detailMessage(from: data))
+        }
+        return try decoder.decode(Response.self, from: data)
+    }
+
+    private func patchJSON<Body: Encodable, Response: Decodable>(
+        path: [String],
+        body: Body,
+        timeout: TimeInterval
+    ) async throws -> Response {
+        var request = URLRequest(url: endpoint(path))
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(body)
+        request.timeoutInterval = timeout
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw GatewayError.modelActionFailed(detailMessage(from: data))
+        }
+        return try decoder.decode(Response.self, from: data)
+    }
+
+    private func putJSON<Body: Encodable, Response: Decodable>(
+        path: [String],
+        body: Body,
+        timeout: TimeInterval
+    ) async throws -> Response {
+        var request = URLRequest(url: endpoint(path))
+        request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(body)
         request.timeoutInterval = timeout

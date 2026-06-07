@@ -33,7 +33,9 @@ class HeartbeatManager {
             let response = try await GatewayClient.shared.heartbeatTick(req)
             for event in response.events ?? [] {
                 IslandWindowController.shared.showProactive(event)
-                await NotificationTool.shared.send(event)
+                if event.triggerType != "cron_reminder" {
+                    await NotificationTool.shared.send(event)
+                }
             }
         } catch {
             jlog("[Heartbeat] tick failed: \(error.localizedDescription)")
@@ -86,7 +88,9 @@ class HeartbeatManager {
                     startTime: iso($0.startDate),
                     endTime: iso($0.endDate),
                     isAllDay: $0.isAllDay,
-                    location: $0.location
+                    location: $0.location,
+                    calendarName: $0.calendar?.title,
+                    alertMinutesBeforeStart: eventAlertMinutesBeforeStart($0)
                 )
             }
     }
@@ -102,9 +106,12 @@ class HeartbeatManager {
                 ReminderSnapshot(
                     id: $0.calendarItemIdentifier,
                     title: $0.title ?? "无标题",
-                    dueTime: $0.dueDateComponents.flatMap { Calendar.current.date(from: $0) }.map(iso),
+                    dueDate: $0.dueDateComponents.flatMap { Calendar.current.date(from: $0) }.map(dateOnly),
+                    dueTime: reminderTime($0.dueDateComponents),
                     isCompleted: $0.isCompleted,
-                    priority: $0.priority
+                    priority: $0.priority,
+                    listName: $0.calendar.title,
+                    alertMinutesBeforeDue: reminderAlertMinutesBeforeDue($0)
                 )
             }
     }
@@ -113,5 +120,37 @@ class HeartbeatManager {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.string(from: date)
+    }
+
+    private func dateOnly(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private func reminderTime(_ components: DateComponents?) -> String? {
+        guard let hour = components?.hour, let minute = components?.minute else { return nil }
+        return String(format: "%02d:%02d", hour, minute)
+    }
+
+    private func eventAlertMinutesBeforeStart(_ event: EKEvent) -> Int? {
+        let values = (event.alarms ?? []).compactMap { alarm -> Int? in
+            let offset = alarm.relativeOffset
+            guard offset <= 0 else { return nil }
+            return max(0, Int(round(abs(offset) / 60)))
+        }
+        return values.min()
+    }
+
+    private func reminderAlertMinutesBeforeDue(_ reminder: EKReminder) -> Int? {
+        guard let due = reminder.dueDateComponents.flatMap({ Calendar.current.date(from: $0) }) else { return nil }
+        let values = (reminder.alarms ?? []).compactMap { alarm -> Int? in
+            guard let alertDate = alarm.absoluteDate else { return nil }
+            let minutes = Int(round(due.timeIntervalSince(alertDate) / 60))
+            guard minutes >= 0 else { return nil }
+            return minutes
+        }
+        return values.min()
     }
 }

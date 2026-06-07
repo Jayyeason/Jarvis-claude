@@ -176,12 +176,13 @@ struct ReminderRecognition {
     var url: URL?
 
     static func from(_ response: ReminderPayload) -> ReminderRecognition {
-        ReminderRecognition(
+        let dueTime = response.dueTime ?? timeFromDateTime(response.dueDate)
+        return ReminderRecognition(
             title: response.title ?? "新提醒",
             notes: response.notes,
             location: response.location,
-            dueDate: RecognitionResult.parseDate(response.dueDate),
-            dueTime: response.dueTime,
+            dueDate: parseDueDate(dueDate: response.dueDate, dueTime: dueTime),
+            dueTime: dueTime,
             recurrence: response.recurrence.map(RecurrenceRule.from),
             alertMinutesBeforeDue: response.alertMinutesBeforeDue,
             listName: response.listName ?? "提醒事项",
@@ -189,6 +190,24 @@ struct ReminderRecognition {
             flagged: response.flagged ?? false,
             url: response.url.flatMap(URL.init(string:))
         )
+    }
+
+    private static func parseDueDate(dueDate: String?, dueTime: String?) -> Date? {
+        guard let dueDate, !dueDate.isEmpty else { return nil }
+        guard let dueTime, !dueTime.isEmpty, !dueDate.contains("T") else {
+            return RecognitionResult.parseDate(dueDate)
+        }
+        let normalizedTime = dueTime.count == 5 ? "\(dueTime):00" : dueTime
+        return RecognitionResult.parseDate("\(dueDate)T\(normalizedTime)")
+            ?? RecognitionResult.parseDate(dueDate)
+    }
+
+    private static func timeFromDateTime(_ value: String?) -> String? {
+        guard let date = RecognitionResult.parseDate(value), value?.contains("T") == true else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 }
 

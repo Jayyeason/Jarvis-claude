@@ -194,6 +194,14 @@ class ConflictInfo(BaseModel):
     calendar_name: Optional[str] = None
 
 
+class AppliedPreference(BaseModel):
+    field: str
+    value: str
+    label: str
+    source: Literal["manual", "learned", "legacy"]
+    message: str
+
+
 class RecognitionCandidate(BaseModel):
     id: str
     kind: Literal["calendar", "reminder"]
@@ -205,6 +213,7 @@ class RecognitionCandidate(BaseModel):
     clarification_question: Optional[str] = None
     conflicts: list[ConflictInfo] = Field(default_factory=list)
     status: Literal["ready", "needs_input", "conflict", "skipped", "written", "error"] = "ready"
+    applied_preferences: list[AppliedPreference] = Field(default_factory=list)
 
 
 class ChatRequest(BaseModel):
@@ -219,6 +228,70 @@ class ChatRequest(BaseModel):
     selected_candidate_ids: Optional[list[str]] = None
 
 
+class AssistantChatRequest(BaseModel):
+    message: str = ""
+    session_id: Optional[str] = None
+
+
+class AssistantDateRange(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    label: Optional[str] = None
+
+
+class AssistantActionTarget(BaseModel):
+    item_kind: Literal["calendar", "reminder", "both"] = "both"
+    title_keywords: list[str] = Field(default_factory=list)
+    date_range: Optional[AssistantDateRange] = None
+    time_of_day: Optional[str] = None
+    time_period: Optional[str] = None
+    raw_text: Optional[str] = None
+
+
+class AssistantOperationPatch(BaseModel):
+    shift_minutes: Optional[int] = None
+    alert_minutes_before: Optional[int] = None
+    new_start_time: Optional[str] = None
+    new_end_time: Optional[str] = None
+    new_due_date: Optional[str] = None
+    new_due_time: Optional[str] = None
+    title: Optional[str] = None
+    location: Optional[str] = None
+
+
+class AssistantMemoryAction(BaseModel):
+    tool: Literal[
+        "set_user_profile",
+        "append_user_memory",
+        "update_schedule_preferences",
+        "propose_soul_change",
+    ]
+    arguments: dict[str, str] = Field(default_factory=dict)
+    confidence: float = 1.0
+    requires_confirmation: bool = False
+
+
+class AssistantActionPlan(BaseModel):
+    action: Literal[
+        "chat",
+        "create_candidates",
+        "update_preference",
+        "update_memory",
+        "list_items",
+        "delete_items",
+        "reschedule_item",
+        "update_alert",
+        "clarify",
+    ]
+    reply: Optional[str] = None
+    clarification_question: Optional[str] = None
+    target: Optional[AssistantActionTarget] = None
+    patch: Optional[AssistantOperationPatch] = None
+    preference_values: Optional[dict[str, str]] = None
+    memory_actions: list[AssistantMemoryAction] = Field(default_factory=list)
+    confirmation_required: bool = True
+
+
 class AgentResponse(BaseModel):
     type: Literal["batch", "clarification", "none", "error"]
     session_id: Optional[str] = None
@@ -229,6 +302,26 @@ class AgentResponse(BaseModel):
     prefilled: Optional[dict[str, str]] = None
 
 
+class AssistantChatResponse(BaseModel):
+    session_id: str
+    reply: str
+    action: Literal[
+        "chat",
+        "review_candidates",
+        "preference_updated",
+        "list_items",
+        "confirm_operation",
+        "execute_operation",
+        "clarify",
+        "error",
+    ]
+    agent_response: Optional[AgentResponse] = None
+    action_plan: Optional[AssistantActionPlan] = None
+    updated_preferences: Optional[dict[str, str]] = None
+    memory_updates: Optional[list[dict[str, str]]] = None
+    error: Optional[str] = None
+
+
 class CalendarEventSnapshot(BaseModel):
     id: str
     title: str
@@ -236,14 +329,19 @@ class CalendarEventSnapshot(BaseModel):
     end_time: str
     is_all_day: bool = False
     location: Optional[str] = None
+    calendar_name: Optional[str] = None
+    alert_minutes_before_start: Optional[int] = None
 
 
 class ReminderSnapshot(BaseModel):
     id: str
     title: str
+    due_date: Optional[str] = None
     due_time: Optional[str] = None
     is_completed: bool = False
     priority: int = 0
+    list_name: Optional[str] = None
+    alert_minutes_before_due: Optional[int] = None
 
 
 class HeartbeatTickRequest(BaseModel):
@@ -275,14 +373,66 @@ class MemoryStatus(BaseModel):
     recent_errors: str = ""
 
 
+class MemoryFile(BaseModel):
+    id: str
+    filename: str
+    title: str
+    editable: bool
+    content: str = ""
+    truncated: bool = False
+    byte_size: int = 0
+
+
+class MemoryFilesResponse(BaseModel):
+    files: list[MemoryFile] = Field(default_factory=list)
+
+
+class MemoryFileUpdateRequest(BaseModel):
+    content: str
+
+
+class MemoryFileUpdateResponse(BaseModel):
+    file: MemoryFile
+
+
+class PreferenceMeta(BaseModel):
+    source: Optional[str] = None
+    confidence: Optional[float] = None
+    observations: Optional[int] = None
+    updated_at: Optional[str] = None
+    cleared: Optional[bool] = None
+
+
+class PreferenceStatValue(BaseModel):
+    count: int = 0
+    sessions: list[str] = Field(default_factory=list)
+    last_seen: Optional[str] = None
+
+
+class MemoryPreferencesResponse(BaseModel):
+    preferences: dict[str, str]
+    preference_meta: dict[str, PreferenceMeta] = Field(default_factory=dict)
+    preference_stats: dict[str, dict[str, PreferenceStatValue]] = Field(default_factory=dict)
+
+
+class MemoryPreferencesPatch(BaseModel):
+    calendar_default_duration_minutes: Optional[int] = None
+    calendar_default_alert_minutes: Optional[int] = None
+    reminder_default_alert_minutes: Optional[int] = None
+    reminder_default_due_time: Optional[str] = None
+    reminder_default_priority_for_deadline: Optional[str] = None
+
+
 class MemoryFeedbackRequest(BaseModel):
-    action: Literal["accepted", "modified", "rejected", "skipped", "written"]
+    action: Literal["accepted", "modified", "rejected", "skipped", "written", "replaced"]
+    session_id: Optional[str] = None
     candidate_id: Optional[str] = None
     candidate_kind: Optional[Literal["calendar", "reminder"]] = None
     title: Optional[str] = None
     status: Optional[str] = None
     modified: bool = False
     note: Optional[str] = None
+    final_candidate: Optional[RecognitionCandidate] = None
 
 
 class MemoryFeedbackResponse(BaseModel):
@@ -311,15 +461,31 @@ CONTRACT_MODELS = [
     CalendarPayload,
     ReminderPayload,
     ConflictInfo,
+    AppliedPreference,
     RecognitionCandidate,
     ChatRequest,
+    AssistantChatRequest,
+    AssistantDateRange,
+    AssistantActionTarget,
+    AssistantOperationPatch,
+    AssistantMemoryAction,
+    AssistantActionPlan,
     AgentResponse,
+    AssistantChatResponse,
     CalendarEventSnapshot,
     ReminderSnapshot,
     HeartbeatTickRequest,
     ProactiveEvent,
     HeartbeatTickResponse,
     MemoryStatus,
+    MemoryFile,
+    MemoryFilesResponse,
+    MemoryFileUpdateRequest,
+    MemoryFileUpdateResponse,
+    PreferenceMeta,
+    PreferenceStatValue,
+    MemoryPreferencesResponse,
+    MemoryPreferencesPatch,
     MemoryFeedbackRequest,
     MemoryFeedbackResponse,
 ]

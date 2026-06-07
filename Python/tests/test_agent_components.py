@@ -1,11 +1,47 @@
+import asyncio
 import json
+import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from agent import JarvisAgent
-from agent.memory import MemoryManager, UserPreferences
+from agent.assistant_chat import (
+    cron_command_payload,
+    cron_delete_id,
+    contextual_schedule_creation_text,
+    heuristic_contextual_action_plan,
+    heuristic_action_plan,
+    is_cron_create_request,
+    is_cron_delete_request,
+    is_cron_help_request,
+    is_cron_list_request,
+    is_contextual_local_operation_request,
+    is_memory_update_request,
+    is_local_operation_request,
+    is_schedule_creation_request,
+    is_schedule_request,
+    is_slash_list_request,
+    plan_assistant_action,
+    plan_cron_task,
+    parse_preference_update,
+    preference_reply,
+)
+from agent.cron_memory import (
+    append_cron_task,
+    delete_cron_task,
+    describe_cron_expr,
+    parse_cron_task_line,
+    previous_cron_time,
+    read_cron_tasks,
+    validate_cron_expr,
+)
+from agent.heartbeat import HeartbeatEngine
+from agent.memory import MEMORY_FILE_WRITE_LIMIT_BYTES, MemoryManager, UserPreferences
+from agent.preferences import PreferenceEngine
 from agent.prompts import build_system_prompt, normalize_input_mode
 from agent.result import normalize_tool_result
 from agent.tools import get_anthropic_tools, get_openai_tools
@@ -13,13 +49,35 @@ from agent.validator import AgentValidationError, validate_agent_result
 from providers.openai_compat import OpenAICompatProvider
 from providers.local_model_registry import LocalModelRegistry, safe_model_id
 from providers.provider_factory import create_provider
+from contracts import AssistantActionPlan
 from gateway import (
     _active_api_key,
+    _assistant_extraction_session_id,
+    _cron_tasks_reply,
+    _execute_memory_actions,
     _mask_secret,
     _normalize_api_keys,
     _set_active_api_key,
     _upsert_api_key,
+    app,
 )
+
+
+class _FakeCroniter:
+    def __init__(self, expr, base):
+        if len(str(expr).split()) != 5:
+            raise ValueError("invalid cron")
+        self.expr = str(expr)
+        self.base = base
+
+    def get_next(self, cls):
+        return self.base
+
+    def get_prev(self, cls):
+        minute, hour, *_ = self.expr.split()
+        if minute.isdigit() and hour.isdigit():
+            return self.base.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
+        return self.base.replace(second=0, microsecond=0)
 
 
 class MemoryManagerTests(unittest.TestCase):
@@ -46,10 +104,9 @@ class MemoryManagerTests(unittest.TestCase):
                         "preferences": {
                             "calendar_default_duration_minutes": 45,
                             "calendar_default_alert_minutes": 15,
+                            "reminder_default_alert_minutes": 5,
                             "reminder_default_due_time": "18:30",
                             "reminder_default_priority_for_deadline": "high",
-                            "calendar_default_name": "Work",
-                            "reminder_default_list_name": "Tasks",
                         }
                     }
                 ),
@@ -60,10 +117,9 @@ class MemoryManagerTests(unittest.TestCase):
 
         self.assertEqual(prefs.calendar_default_duration_minutes, 45)
         self.assertEqual(prefs.calendar_default_alert_minutes, 15)
+        self.assertEqual(prefs.reminder_default_alert_minutes, 5)
         self.assertEqual(prefs.reminder_default_due_time, "18:30")
         self.assertEqual(prefs.reminder_default_priority_for_deadline, "high")
-        self.assertEqual(prefs.calendar_default_name, "Work")
-        self.assertEqual(prefs.reminder_default_list_name, "Tasks")
 
     def test_loads_legacy_flat_preference_shape_for_custom_path(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -76,6 +132,878 @@ class MemoryManagerTests(unittest.TestCase):
             prefs = MemoryManager(path).load_preferences()
 
         self.assertEqual(prefs.calendar_default_alert_minutes, 20)
+
+    def test_preference_engine_applies_reminder_due_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "memory.json"
+            path.write_text(
+                json.dumps({"preferences": {"reminder_default_due_time": "20:00"}}),
+                encoding="utf-8",
+            )
+            result = validate_agent_result(
+                {
+                    "type": "batch",
+                    "candidates": [
+                        {
+                            "id": "candidate_1",
+                            "kind": "reminder",
+                            "reminder": {"title": "交电费", "due_date": "2026-06-08"},
+                        }
+                    ],
+                }
+            )
+
+            applied = PreferenceEngine(MemoryManager(path)).apply(result, "明天记得交电费")
+            applied = validate_agent_result(applied)
+
+        candidate = applied["candidates"][0]
+        self.assertEqual(candidate["status"], "ready")
+        self.assertEqual(candidate["reminder"]["due_time"], "20:00")
+        self.assertEqual(candidate["missing_fields"], [])
+        self.assertEqual(candidate["applied_preferences"][0]["field"], "reminder.due_time")
+
+    def test_date_only_reminder_without_preference_needs_input(self):
+        result = validate_agent_result(
+            {
+                "type": "batch",
+                "candidates": [
+                    {
+                        "id": "candidate_1",
+                        "kind": "reminder",
+                        "reminder": {"title": "交电费", "due_date": "2026-06-08"},
+                    }
+                ],
+            }
+        )
+
+        candidate = result["candidates"][0]
+        self.assertEqual(candidate["status"], "needs_input")
+        self.assertIn("time", candidate["missing_fields"])
+
+    def test_preference_engine_applies_calendar_duration_and_alert(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "memory.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "preferences": {
+                            "calendar_default_duration_minutes": 45,
+                            "calendar_default_alert_minutes": 15,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = validate_agent_result(
+                {
+                    "type": "batch",
+                    "candidates": [
+                        {
+                            "id": "candidate_1",
+                            "kind": "calendar",
+                            "calendar": {
+                                "title": "组会",
+                                "start_time": "2026-06-08T15:00:00",
+                            },
+                        }
+                    ],
+                }
+            )
+
+            applied = PreferenceEngine(MemoryManager(path)).apply(result, "明天下午三点组会")
+            applied = validate_agent_result(applied)
+
+        candidate = applied["candidates"][0]
+        self.assertEqual(candidate["status"], "ready")
+        self.assertEqual(candidate["calendar"]["end_time"], "2026-06-08T15:45:00")
+        self.assertEqual(candidate["calendar"]["alert_minutes_before_start"], 15)
+        self.assertEqual(
+            {item["field"] for item in candidate["applied_preferences"]},
+            {"calendar.end_time", "calendar.alert_minutes_before_start"},
+        )
+
+    def test_preference_engine_applies_system_calendar_defaults_without_memory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = validate_agent_result(
+                {
+                    "type": "batch",
+                    "candidates": [
+                        {
+                            "id": "candidate_1",
+                            "kind": "calendar",
+                            "calendar": {
+                                "title": "答辩",
+                                "start_time": "2026-06-08T16:00:00",
+                            },
+                        }
+                    ],
+                }
+            )
+
+            applied = PreferenceEngine(MemoryManager(Path(tmp) / "memory.json")).apply(result, "明天下午4点答辩")
+            applied = validate_agent_result(applied)
+
+        candidate = applied["candidates"][0]
+        self.assertEqual(candidate["status"], "ready")
+        self.assertEqual(candidate["calendar"]["end_time"], "2026-06-08T17:00:00")
+        self.assertEqual(candidate["calendar"]["alert_minutes_before_start"], 10)
+        self.assertEqual(
+            {item["field"]: item["source"] for item in candidate["applied_preferences"]},
+            {
+                "calendar.end_time": "default",
+                "calendar.alert_minutes_before_start": "default",
+            },
+        )
+
+    def test_preference_engine_keeps_user_provided_duration_and_alert(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = validate_agent_result(
+                {
+                    "type": "batch",
+                    "candidates": [
+                        {
+                            "id": "candidate_1",
+                            "kind": "calendar",
+                            "calendar": {
+                                "title": "答辩",
+                                "start_time": "2026-06-08T16:00:00",
+                                "end_time": "2026-06-08T18:00:00",
+                                "alert_minutes_before_start": 20,
+                            },
+                        }
+                    ],
+                }
+            )
+
+            applied = PreferenceEngine(MemoryManager(Path(tmp) / "memory.json")).apply(
+                result,
+                "明天下午4点到6点答辩，提前20分钟提醒",
+            )
+            applied = validate_agent_result(applied)
+
+        candidate = applied["candidates"][0]
+        self.assertEqual(candidate["calendar"]["end_time"], "2026-06-08T18:00:00")
+        self.assertEqual(candidate["calendar"]["alert_minutes_before_start"], 20)
+        self.assertEqual(candidate["applied_preferences"], [])
+
+    def test_memory_promotes_stable_written_preference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "memory.json"
+            manager = MemoryManager(path)
+            candidate = {
+                "id": "candidate_1",
+                "kind": "calendar",
+                "calendar": {
+                    "title": "组会",
+                    "start_time": "2026-06-08T15:00:00",
+                    "end_time": "2026-06-08T16:00:00",
+                    "alert_minutes_before_start": 15,
+                },
+            }
+
+            manager.learn_from_candidate("written", candidate, "s1")
+            manager.learn_from_candidate("written", candidate, "s2")
+            manager.learn_from_candidate("written", candidate, "s2")
+            status = manager.preferences_status()
+            user_markdown = (Path(tmp) / "user.md").read_text(encoding="utf-8")
+
+        self.assertEqual(status["preferences"]["calendar_default_alert_minutes"], 15)
+        self.assertEqual(status["preference_meta"]["calendar_default_alert_minutes"]["source"], "learned")
+        self.assertIn("- 日程默认提醒：提前 15 分钟", user_markdown)
+
+    def test_update_preferences_syncs_user_markdown_section(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "memory.json"
+            manager = MemoryManager(path)
+            user_path = Path(tmp) / "user.md"
+            user_path.write_text(
+                "# user.md\n\n"
+                "## 日历与提醒偏好\n"
+                "- old value\n\n"
+                "## 城市\n"
+                "- 上海\n\n"
+                "## 自定义\n"
+                "- 保留这行\n",
+                encoding="utf-8",
+            )
+
+            manager.update_preferences({"calendar_default_alert_minutes": 15}, source="manual")
+            text = user_path.read_text(encoding="utf-8")
+
+        self.assertIn("- 日程默认提醒：提前 15 分钟", text)
+        self.assertNotIn("- old value", text)
+        self.assertIn("## 日程与提醒事项偏好", text)
+        self.assertNotIn("## 日历与提醒偏好", text)
+        self.assertIn("## 城市\n- 上海", text)
+        self.assertIn("## 自定义\n- 保留这行", text)
+
+    def test_update_preferences_appends_user_markdown_section_when_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "memory.json"
+            manager = MemoryManager(path)
+            user_path = Path(tmp) / "user.md"
+            user_path.write_text("# user.md\n\n## 城市\n- 北京\n", encoding="utf-8")
+
+            manager.update_preferences({"reminder_default_due_time": "20:00"}, source="manual")
+            text = user_path.read_text(encoding="utf-8")
+            prompt_context = manager.render_prompt_context()
+
+        self.assertIn("## 城市\n- 北京", text)
+        self.assertIn("## 日程与提醒事项偏好", text)
+        self.assertIn("- 提醒默认到期时间：20:00", text)
+        self.assertIn("20:00", prompt_context)
+
+    def test_managed_files_return_memory_editor_whitelist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+
+            files = manager.managed_files()
+
+        self.assertEqual([item["id"] for item in files], ["soul", "user", "heartbeat"])
+        self.assertEqual([item["filename"] for item in files], ["soul.md", "user.md", "heartbeat.md"])
+        self.assertTrue(files[0]["editable"])
+        self.assertTrue(files[-1]["editable"])
+
+    def test_update_managed_user_file_updates_prompt_context(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            content = "# user.md\n\n## 偏好\n- 我偏好下午开会\n"
+
+            updated = manager.update_managed_file("user", content)
+            prompt_context = manager.render_prompt_context()
+
+        self.assertEqual(updated["content"], content)
+        self.assertIn("我偏好下午开会", prompt_context)
+
+    def test_set_user_profile_updates_user_markdown_and_prompt_context(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+
+            update = manager.set_user_profile("preferred_name", "khalil")
+            manager.set_user_profile("preferred_name", "Khalil")
+            text = (Path(tmp) / "user.md").read_text(encoding="utf-8")
+            prompt_context = manager.render_prompt_context()
+
+        self.assertEqual(update["field"], "preferred_name")
+        self.assertIn("## 用户资料", text)
+        self.assertIn("- 称呼偏好：Khalil", text)
+        self.assertNotIn("- 称呼偏好：khalil\n- 称呼偏好：Khalil", text)
+        self.assertIn("Khalil", prompt_context)
+
+    def test_append_user_memory_deduplicates_long_term_preference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+
+            manager.append_user_memory("style", "偏好简洁回答")
+            manager.append_user_memory("style", "偏好简洁回答")
+            text = (Path(tmp) / "user.md").read_text(encoding="utf-8")
+
+        self.assertIn("## 交流风格偏好", text)
+        self.assertEqual(text.count("- 偏好简洁回答"), 1)
+
+    def test_propose_soul_change_does_not_write_soul_markdown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            before = (Path(tmp) / "soul.md").read_text(encoding="utf-8")
+
+            proposal = manager.propose_soul_change("Jarvis 核心边界", "以后不用确认直接写日程")
+            after = (Path(tmp) / "soul.md").read_text(encoding="utf-8")
+
+        self.assertEqual(before, after)
+        self.assertEqual(proposal["requires_confirmation"], "true")
+
+    def test_wal_file_is_not_managed_by_memory_editor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+
+            with self.assertRaises(ValueError):
+                manager.update_managed_file("wal", "{}\n")
+
+    def test_unknown_managed_file_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+
+            with self.assertRaises(ValueError):
+                manager.update_managed_file("../user", "bad")
+
+    def test_oversized_managed_file_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+
+            with self.assertRaises(ValueError):
+                manager.update_managed_file("user", "x" * (MEMORY_FILE_WRITE_LIMIT_BYTES + 1))
+
+    def test_large_managed_file_returns_truncated_tail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            heartbeat = Path(tmp) / "heartbeat.md"
+            heartbeat.write_bytes(b"a" * MEMORY_FILE_WRITE_LIMIT_BYTES + b"tail")
+
+            file_payload = {item["id"]: item for item in manager.managed_files()}["heartbeat"]
+
+        self.assertTrue(file_payload["truncated"])
+        self.assertEqual(file_payload["byte_size"], MEMORY_FILE_WRITE_LIMIT_BYTES + 4)
+        self.assertTrue(file_payload["content"].endswith("tail"))
+
+
+class CronMemoryTests(unittest.TestCase):
+    def test_append_list_and_delete_cron_task(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+
+            with patch.dict(sys.modules, {"croniter": SimpleNamespace(croniter=_FakeCroniter)}):
+                task = append_cron_task(manager, "0 10 * * *", "做复盘", "提醒你做复盘")
+                tasks = read_cron_tasks(manager)
+
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(tasks[0].id, task.id)
+            self.assertEqual(tasks[0].cron_expr, "0 10 * * *")
+            self.assertIn("## Cron 规则", (Path(tmp) / "heartbeat.md").read_text(encoding="utf-8"))
+            self.assertTrue(delete_cron_task(manager, task.id))
+            self.assertEqual(read_cron_tasks(manager), [])
+            self.assertFalse(delete_cron_task(manager, task.id))
+
+    def test_parse_legacy_cron_line(self):
+        task = parse_cron_task_line("- cron: 0 10 * * * | 做复盘 | 提醒你做复盘")
+
+        self.assertTrue(task.id.startswith("cron_"))
+        self.assertEqual(task.cron_expr, "0 10 * * *")
+        self.assertEqual(task.title, "做复盘")
+        self.assertEqual(task.body, "提醒你做复盘")
+
+    def test_invalid_cron_expression_is_rejected(self):
+        with self.assertRaises(ValueError):
+            validate_cron_expr("not a cron")
+
+    def test_cron_validation_falls_back_when_croniter_is_missing(self):
+        with patch.dict(sys.modules, {"croniter": None}):
+            self.assertEqual(validate_cron_expr("49 23 * * *"), "49 23 * * *")
+            previous = previous_cron_time("49 23 * * *", datetime(2026, 6, 7, 23, 49, 30))
+
+        self.assertEqual(previous, datetime(2026, 6, 7, 23, 49, 0))
+
+    def test_describe_cron_expression_for_common_schedules(self):
+        with patch.dict(sys.modules, {"croniter": SimpleNamespace(croniter=_FakeCroniter)}):
+            self.assertEqual(describe_cron_expr("20 0 * * *"), "每天 00:20")
+            self.assertEqual(describe_cron_expr("0 18 * * 1-5"), "每个工作日 18:00")
+            self.assertEqual(describe_cron_expr("30 9 * * 1"), "每周一 09:30")
+            self.assertEqual(describe_cron_expr("0 10 1 * *"), "每月 1 日 10:00")
+
+    def test_heartbeat_emits_cron_reminder_and_marks_seen(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            with patch.dict(sys.modules, {"croniter": SimpleNamespace(croniter=_FakeCroniter)}):
+                task = append_cron_task(manager, "0 10 * * *", "做复盘", "提醒你做复盘")
+                engine = HeartbeatEngine(manager)
+
+                events = engine._cron_rules(datetime(2026, 6, 7, 10, 0, 30))
+                repeated = engine._cron_rules(datetime(2026, 6, 7, 10, 0, 45))
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].trigger_type, "cron_reminder")
+        self.assertIn(task.id, events[0].id)
+        self.assertEqual(events[0].title, "做复盘")
+        self.assertEqual(repeated, [])
+
+
+class CronReplyFormattingTests(unittest.TestCase):
+    def test_cron_list_reply_uses_markdown_and_human_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            app.state.agent = SimpleNamespace(memory_manager=manager)
+            with patch.dict(sys.modules, {"croniter": SimpleNamespace(croniter=_FakeCroniter)}):
+                task = append_cron_task(manager, "20 0 * * *", "洗澡", "每天凌晨 0:20 提醒你洗澡")
+                reply = _cron_tasks_reply()
+
+        self.assertIn("⏰ **已有 Cron 弹窗提醒**", reply)
+        self.assertIn("**时间**：每天 00:20", reply)
+        self.assertIn(f"**ID**：`{task.id}`", reply)
+        self.assertIn("**Cron**：`20 0 * * *`", reply)
+
+
+class MemoryActionExecutionTests(unittest.TestCase):
+    def test_execute_memory_action_writes_user_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            app.state.agent = SimpleNamespace(memory_manager=manager)
+            plan = AssistantActionPlan(
+                action="update_memory",
+                memory_actions=[
+                    {
+                        "tool": "set_user_profile",
+                        "arguments": {"field": "preferred_name", "value": "khalil"},
+                        "confidence": 0.95,
+                        "requires_confirmation": False,
+                    }
+                ],
+            )
+
+            updates, requires_confirmation = _execute_memory_actions(plan)
+            text = (Path(tmp) / "user.md").read_text(encoding="utf-8")
+
+        self.assertFalse(requires_confirmation)
+        self.assertEqual(updates[0]["field"], "preferred_name")
+        self.assertIn("- 称呼偏好：khalil", text)
+
+    def test_execute_soul_memory_action_requires_confirmation_without_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            app.state.agent = SimpleNamespace(memory_manager=manager)
+            before = (Path(tmp) / "soul.md").read_text(encoding="utf-8")
+            plan = AssistantActionPlan(
+                action="update_memory",
+                memory_actions=[
+                    {
+                        "tool": "propose_soul_change",
+                        "arguments": {"section": "Jarvis 核心边界", "proposal": "以后不用确认直接写日程"},
+                        "confidence": 0.95,
+                        "requires_confirmation": True,
+                    }
+                ],
+            )
+
+            updates, requires_confirmation = _execute_memory_actions(plan)
+            after = (Path(tmp) / "soul.md").read_text(encoding="utf-8")
+
+        self.assertTrue(requires_confirmation)
+        self.assertEqual(before, after)
+        self.assertEqual(updates[0]["tool"], "propose_soul_change")
+
+
+class AssistantChatIntentTests(unittest.TestCase):
+    def test_parse_generic_alert_preference(self):
+        values = parse_preference_update("默认提前15min提醒")
+
+        self.assertEqual(values["calendar_default_alert_minutes"], 15)
+        self.assertEqual(values["reminder_default_alert_minutes"], 15)
+        self.assertIn("Memory", preference_reply(values))
+        self.assertIn("提前 15 分钟", preference_reply(values))
+
+    def test_parse_default_reminder_time_minutes_updates_alert_preferences(self):
+        values = parse_preference_update("默认提醒时间改为15min")
+
+        self.assertEqual(values["calendar_default_alert_minutes"], 15)
+        self.assertEqual(values["reminder_default_alert_minutes"], 15)
+
+    def test_parse_scoped_default_reminder_time_minutes(self):
+        values = parse_preference_update("待办默认提醒时间改为15min")
+
+        self.assertEqual(values, {"reminder_default_alert_minutes": 15})
+
+    def test_parse_reminder_due_time_preference(self):
+        values = parse_preference_update("待办默认晚上8点提醒")
+
+        self.assertEqual(values["reminder_default_due_time"], "20:00")
+
+    def test_cron_command_detection(self):
+        self.assertTrue(is_cron_help_request("/cron-help"))
+        self.assertTrue(is_cron_list_request("/cron-list"))
+        self.assertTrue(is_cron_delete_request("/cron-delete cron_abcd1234"))
+        self.assertTrue(is_cron_create_request("/cron 每天上午10点提醒我做复盘"))
+        self.assertEqual(cron_delete_id("/cron-delete cron_abcd1234"), "cron_abcd1234")
+        self.assertEqual(cron_command_payload("/cron 每天上午10点提醒我做复盘"), "每天上午10点提醒我做复盘")
+
+    def test_cron_planner_parses_model_json(self):
+        class CronProvider:
+            async def chat(self, **kwargs):
+                self.kwargs = kwargs
+                return json.dumps({"cron_expr": "0 10 * * *", "title": "做复盘", "body": "提醒你做复盘"})
+
+        provider = CronProvider()
+        plan = asyncio.run(plan_cron_task(provider, "/cron 每天上午10点提醒我做复盘", datetime(2026, 6, 7, 9, 0, 0)))
+
+        self.assertEqual(plan["cron_expr"], "0 10 * * *")
+        self.assertEqual(plan["title"], "做复盘")
+        self.assertIn("5 字段 cron", provider.kwargs["system_prompt"])
+
+    def test_memory_update_request_detection(self):
+        self.assertTrue(is_memory_update_request("以后称呼我为 khalil"))
+        self.assertTrue(is_memory_update_request("记住我偏好简洁回答"))
+        self.assertFalse(is_memory_update_request("我今天有点累"))
+        self.assertFalse(is_memory_update_request("默认提醒时间改为15min"))
+
+    def test_planner_accepts_memory_action_plan(self):
+        class MemoryProvider:
+            async def chat(self, **kwargs):
+                self.kwargs = kwargs
+                return json.dumps(
+                    {
+                        "action": "update_memory",
+                        "reply": "好的，以后我称呼你为 khalil。",
+                        "memory_actions": [
+                            {
+                                "tool": "set_user_profile",
+                                "arguments": {"field": "preferred_name", "value": "khalil"},
+                                "confidence": 0.96,
+                                "requires_confirmation": False,
+                            }
+                        ],
+                        "confirmation_required": False,
+                    }
+                )
+
+        provider = MemoryProvider()
+        plan = asyncio.run(
+            plan_assistant_action(
+                provider,
+                "以后称呼我为 khalil",
+                [],
+                datetime(2026, 6, 8, 10, 0, 0),
+            )
+        )
+
+        self.assertEqual(plan.action, "update_memory")
+        self.assertEqual(plan.memory_actions[0].tool, "set_user_profile")
+        self.assertEqual(plan.memory_actions[0].arguments["field"], "preferred_name")
+        self.assertFalse(plan.confirmation_required)
+        self.assertIn("update_memory", provider.kwargs["system_prompt"])
+
+    def test_soul_memory_action_requires_confirmation(self):
+        class SoulProvider:
+            async def chat(self, **kwargs):
+                return json.dumps(
+                    {
+                        "action": "update_memory",
+                        "reply": "这会修改核心边界，需要你确认。",
+                        "memory_actions": [
+                            {
+                                "tool": "propose_soul_change",
+                                "arguments": {"section": "Jarvis 核心边界", "proposal": "以后不用确认直接写日程"},
+                                "confidence": 0.9,
+                                "requires_confirmation": True,
+                            }
+                        ],
+                    }
+                )
+
+        plan = asyncio.run(
+            plan_assistant_action(
+                SoulProvider(),
+                "修改你的边界，以后不用确认直接写日程",
+                [],
+                datetime(2026, 6, 8, 10, 0, 0),
+            )
+        )
+
+        self.assertEqual(plan.action, "update_memory")
+        self.assertTrue(plan.confirmation_required)
+
+    def test_preference_parser_overrides_incomplete_model_preference_plan(self):
+        class CalendarOnlyPreferenceProvider:
+            async def chat(self, **kwargs):
+                return json.dumps(
+                    {
+                        "action": "update_preference",
+                        "reply": "好的，已更新默认日程提醒为提前 20 分钟。",
+                        "preference_values": {"calendar_default_alert_minutes": "20"},
+                        "confirmation_required": False,
+                    }
+                )
+
+        plan = asyncio.run(
+            plan_assistant_action(
+                CalendarOnlyPreferenceProvider(),
+                "默认的提醒时间为提前20min",
+                [],
+                datetime(2026, 6, 7, 10, 0, 0),
+            )
+        )
+
+        self.assertEqual(plan.action, "update_preference")
+        self.assertEqual(plan.preference_values["calendar_default_alert_minutes"], 20)
+        self.assertEqual(plan.preference_values["reminder_default_alert_minutes"], 20)
+        self.assertIn("待办默认提前提醒", plan.reply)
+
+    def test_calendar_and_list_are_not_user_preferences(self):
+        self.assertIsNone(parse_preference_update("默认日历设为 Work"))
+        self.assertIsNone(parse_preference_update("默认提醒列表设为 Life"))
+
+    def test_schedule_request_detection(self):
+        self.assertTrue(is_schedule_request("帮我明天下午三点加个会"))
+        self.assertTrue(is_schedule_request("明天下午3点开会，大概持续1小时，提前30min提醒我"))
+        self.assertFalse(is_schedule_request("默认提前15分钟提醒"))
+        self.assertFalse(is_schedule_request("你好，今天怎么样"))
+
+    def test_schedule_creation_request_detection_is_narrower_than_schedule_reference(self):
+        self.assertTrue(is_schedule_creation_request("添加日程，明天晚上6点30项目管理答辩，大概1小时，提前30min提醒我"))
+        self.assertTrue(is_schedule_creation_request("明天下午3点开会，大概持续1小时，提前30min提醒我"))
+        self.assertFalse(is_schedule_creation_request("查看未来2天日程"))
+        self.assertFalse(is_schedule_creation_request("今晚9点的开会提前20min提醒我"))
+
+    def test_local_operation_detection(self):
+        self.assertTrue(is_local_operation_request("列出明天的日程/待办"))
+        self.assertTrue(is_local_operation_request("删除明天的开会日程"))
+        self.assertTrue(is_local_operation_request("把明天下午开会日程推迟1小时开始"))
+        self.assertTrue(is_local_operation_request("最近2天的日程和待办"))
+        self.assertTrue(is_local_operation_request("2天内的日程"))
+        self.assertFalse(is_local_operation_request("明天下午3点开会，大概持续1小时，提前30min提醒我"))
+        self.assertFalse(is_local_operation_request("默认提前15分钟提醒"))
+
+    def test_new_calendar_with_alert_is_not_existing_alert_update(self):
+        plan = heuristic_action_plan("明天下午3点开会，大概持续1小时，提前30min提醒我", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertIsNone(plan)
+
+    def test_heuristic_plan_lists_tomorrow_items(self):
+        plan = heuristic_action_plan("列出明天的日程/待办", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "list_items")
+        self.assertEqual(plan.target.item_kind, "both")
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-08")
+        self.assertEqual(plan.target.date_range.end_date, "2026-06-09")
+
+    def test_heuristic_plan_lists_implicit_recent_items(self):
+        plan = heuristic_action_plan("最近2天的日程和待办", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "list_items")
+        self.assertEqual(plan.target.item_kind, "both")
+        self.assertEqual(plan.target.title_keywords, [])
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(plan.target.date_range.end_date, "2026-06-09")
+
+    def test_list_queries_always_include_calendar_and_reminders(self):
+        now = datetime(2026, 6, 7, 10, 0, 0)
+
+        calendar_plan = heuristic_action_plan("查看最近2天日程", now)
+        reminder_plan = heuristic_action_plan("查看最近2天待办", now)
+
+        self.assertEqual(calendar_plan.action, "list_items")
+        self.assertEqual(calendar_plan.target.item_kind, "both")
+        self.assertEqual(calendar_plan.target.title_keywords, [])
+        self.assertEqual(calendar_plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(calendar_plan.target.date_range.end_date, "2026-06-09")
+        self.assertEqual(reminder_plan.action, "list_items")
+        self.assertEqual(reminder_plan.target.item_kind, "both")
+        self.assertEqual(reminder_plan.target.title_keywords, [])
+        self.assertEqual(reminder_plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(reminder_plan.target.date_range.end_date, "2026-06-09")
+
+    def test_list_queries_accept_chinese_day_count(self):
+        plan = heuristic_action_plan("查看最近两天日程", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "list_items")
+        self.assertEqual(plan.target.item_kind, "both")
+        self.assertEqual(plan.target.title_keywords, [])
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(plan.target.date_range.end_date, "2026-06-09")
+
+    def test_heuristic_plan_lists_future_calendar_and_reminders_with_slash(self):
+        plan = heuristic_action_plan("查看未来2天的日程/提醒事项", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "list_items")
+        self.assertEqual(plan.target.item_kind, "both")
+        self.assertEqual(plan.target.title_keywords, [])
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(plan.target.date_range.end_date, "2026-06-09")
+
+    def test_list_command_defaults_to_calendar_and_reminders(self):
+        plan = heuristic_action_plan("/list 未来2天", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "list_items")
+        self.assertEqual(plan.target.item_kind, "both")
+        self.assertEqual(plan.target.title_keywords, [])
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(plan.target.date_range.end_date, "2026-06-09")
+
+    def test_list_command_ignores_command_words_and_separators(self):
+        plan = heuristic_action_plan("/list 看一下未来2天日程/提醒事项", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "list_items")
+        self.assertEqual(plan.target.item_kind, "both")
+        self.assertEqual(plan.target.title_keywords, [])
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(plan.target.date_range.end_date, "2026-06-09")
+
+    def test_slash_list_week_ranges(self):
+        now = datetime(2026, 6, 7, 10, 0, 0)
+        cases = [
+            ("/list 未来1周", "2026-06-07", "2026-06-14"),
+            ("/list 未来一周", "2026-06-07", "2026-06-14"),
+            ("/list 最近2周", "2026-06-07", "2026-06-21"),
+            ("/list 接下来一个星期", "2026-06-07", "2026-06-14"),
+        ]
+        for msg, expected_start, expected_end in cases:
+            with self.subTest(msg=msg):
+                plan = heuristic_action_plan(msg, now)
+                self.assertEqual(plan.action, "list_items", msg)
+                self.assertEqual(plan.target.date_range.start_date, expected_start, msg)
+                self.assertEqual(plan.target.date_range.end_date, expected_end, msg)
+
+    def test_slash_list_month_ranges(self):
+        now = datetime(2026, 6, 7, 10, 0, 0)
+        cases = [
+            ("/list 未来一个月", "2026-06-07", "2026-07-07"),
+            ("/list 最近2个月", "2026-06-07", "2026-08-06"),
+        ]
+        for msg, expected_start, expected_end in cases:
+            with self.subTest(msg=msg):
+                plan = heuristic_action_plan(msg, now)
+                self.assertEqual(plan.action, "list_items", msg)
+                self.assertEqual(plan.target.date_range.start_date, expected_start, msg)
+                self.assertEqual(plan.target.date_range.end_date, expected_end, msg)
+
+    def test_contextual_future_range_answer_continues_list_operation(self):
+        history = [
+            {"role": "user", "content": "列出最近2天日程"},
+            {"role": "assistant", "content": "您是想查看最近2天已经过去的日程，还是未来2天的日程？"},
+        ]
+
+        self.assertTrue(is_contextual_local_operation_request("未来2天", history))
+        plan = heuristic_contextual_action_plan("未来2天", history, datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "list_items")
+        self.assertEqual(plan.target.item_kind, "both")
+        self.assertEqual(plan.target.title_keywords, [])
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(plan.target.date_range.end_date, "2026-06-09")
+
+    def test_planner_respects_model_for_non_slash_list_requests(self):
+        class ChatOnlyProvider:
+            async def chat(self, **kwargs):
+                return json.dumps({"action": "chat", "reply": "我无法直接读取你的系统日历。"})
+
+        plan = asyncio.run(
+            plan_assistant_action(
+                ChatOnlyProvider(),
+                "最近2天的日程和待办",
+                [],
+                datetime(2026, 6, 7, 10, 0, 0),
+            )
+        )
+
+        self.assertEqual(plan.action, "chat")
+
+    def test_new_schedule_creation_uses_extraction_route_not_local_operation_route(self):
+        text = "明天下午3点开会，大概持续1小时，提前30min提醒我"
+
+        self.assertTrue(is_schedule_request(text))
+        self.assertTrue(is_schedule_creation_request(text))
+        self.assertFalse(is_local_operation_request(text))
+        self.assertFalse(is_slash_list_request(text))
+
+    def test_add_schedule_with_alert_uses_extraction_route(self):
+        text = "添加日程，明天晚上6点30项目管理答辩，大概1小时，提前30min提醒我"
+
+        self.assertTrue(is_schedule_request(text))
+        self.assertTrue(is_schedule_creation_request(text))
+        self.assertFalse(is_local_operation_request(text))
+        self.assertFalse(is_slash_list_request(text))
+
+    def test_new_schedule_with_alert_uses_extraction_route(self):
+        text = "新建日程，明天晚上6点半项目管理答辩，提前30分钟提醒我"
+
+        self.assertTrue(is_schedule_request(text))
+        self.assertTrue(is_schedule_creation_request(text))
+        self.assertFalse(is_local_operation_request(text))
+        self.assertFalse(is_slash_list_request(text))
+
+    def test_confirmation_reply_reuses_previous_creation_context(self):
+        history = [
+            {"role": "user", "content": "明天（6月8日）下午4点到5点答辩，提前20分钟提醒，对吗？"},
+            {
+                "role": "assistant",
+                "content": "需要你最后确认一次：明天（6月8日）下午4点到5点答辩，提前20分钟提醒，是否确认添加？",
+            },
+        ]
+
+        text = contextual_schedule_creation_text("确认添加", history)
+
+        self.assertIsNotNone(text)
+        self.assertIn("下午4点到5点答辩", text)
+        self.assertIn("用户确认：确认添加", text)
+
+    def test_confirmation_reply_without_creation_context_is_not_schedule_creation(self):
+        history = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "你好，有什么可以帮你的？"},
+        ]
+
+        self.assertIsNone(contextual_schedule_creation_text("确认添加", history))
+
+    def test_heuristic_plan_deletes_calendar_target(self):
+        plan = heuristic_action_plan("删除明天的开会日程", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "delete_items")
+        self.assertEqual(plan.target.item_kind, "calendar")
+        self.assertIn("开会", plan.target.title_keywords)
+        self.assertTrue(plan.confirmation_required)
+
+    def test_heuristic_plan_reschedules_with_shift(self):
+        plan = heuristic_action_plan("把明天下午开会日程推迟1小时开始", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "reschedule_item")
+        self.assertEqual(plan.target.item_kind, "calendar")
+        self.assertEqual(plan.patch.shift_minutes, 60)
+        self.assertTrue(plan.confirmation_required)
+
+    def test_heuristic_plan_reschedules_weekday_evening_event_with_time(self):
+        plan = heuristic_action_plan("周日晚上22点的会议提前了1小时", datetime(2026, 6, 7, 17, 30, 0))
+
+        self.assertEqual(plan.action, "reschedule_item")
+        self.assertEqual(plan.target.item_kind, "calendar")
+        self.assertEqual(plan.target.title_keywords, ["会议"])
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(plan.target.date_range.end_date, "2026-06-08")
+        self.assertEqual(plan.target.time_of_day, "22:00")
+        self.assertEqual(plan.target.time_period, "evening")
+        self.assertEqual(plan.patch.shift_minutes, -60)
+        self.assertTrue(plan.confirmation_required)
+
+    def test_heuristic_plan_reschedules_today_evening_event_without_exact_time(self):
+        plan = heuristic_action_plan("今天晚上的会议提前了一小时", datetime(2026, 6, 7, 17, 30, 0))
+
+        self.assertEqual(plan.action, "reschedule_item")
+        self.assertEqual(plan.target.item_kind, "calendar")
+        self.assertEqual(plan.target.title_keywords, ["会议"])
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-07")
+        self.assertIsNone(plan.target.time_of_day)
+        self.assertEqual(plan.target.time_period, "evening")
+        self.assertEqual(plan.patch.shift_minutes, -60)
+
+    def test_heuristic_plan_reschedules_with_chinese_time(self):
+        plan = heuristic_action_plan("今晚十点的会议提前一小时", datetime(2026, 6, 7, 17, 30, 0))
+
+        self.assertEqual(plan.action, "reschedule_item")
+        self.assertEqual(plan.target.time_of_day, "22:00")
+        self.assertEqual(plan.patch.shift_minutes, -60)
+
+    def test_heuristic_plan_updates_existing_calendar_alert(self):
+        plan = heuristic_action_plan("今晚9点的开会提前20min提醒我", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "update_alert")
+        self.assertEqual(plan.target.item_kind, "calendar")
+        self.assertEqual(plan.target.title_keywords, ["开会"])
+        self.assertEqual(plan.target.date_range.start_date, "2026-06-07")
+        self.assertEqual(plan.target.time_of_day, "21:00")
+        self.assertEqual(plan.patch.alert_minutes_before, 20)
+        self.assertFalse(plan.confirmation_required)
+
+    def test_heuristic_plan_updates_existing_calendar_alert_with_chinese_time(self):
+        self.assertTrue(is_local_operation_request("今晚九点的开会提前20min提醒我"))
+
+    def test_explicit_reminder_word_updates_alert_not_schedule(self):
+        plan = heuristic_action_plan("今天晚上22点的会议提醒提前了1小时", datetime(2026, 6, 7, 17, 30, 0))
+
+        self.assertEqual(plan.action, "update_alert")
+        self.assertEqual(plan.target.item_kind, "calendar")
+        self.assertEqual(plan.target.title_keywords, ["会议"])
+        self.assertEqual(plan.target.time_of_day, "22:00")
+        self.assertEqual(plan.patch.alert_minutes_before, 60)
+        self.assertFalse(plan.confirmation_required)
+
+    def test_heuristic_plan_clarifies_missing_reschedule_patch(self):
+        plan = heuristic_action_plan("修改明天的开会日程", datetime(2026, 6, 7, 10, 0, 0))
+
+        self.assertEqual(plan.action, "clarify")
+        self.assertIn("什么时候", plan.clarification_question)
+
+    def test_assistant_extraction_session_ids_are_unique(self):
+        first = _assistant_extraction_session_id("chat-session")
+        second = _assistant_extraction_session_id("chat-session")
+
+        self.assertTrue(first.startswith("assistant:chat-session:"))
+        self.assertTrue(second.startswith("assistant:chat-session:"))
+        self.assertNotEqual(first, second)
 
 
 class ToolSchemaTests(unittest.TestCase):
@@ -534,7 +1462,7 @@ class AgentRunTests(unittest.IsolatedAsyncioTestCase):
                             "kind": "calendar",
                             "calendar": {
                                 "title": "Team meeting",
-                                "start_time": "2026-05-06T10:00:00",
+                                "start_time": "2026-05-06",
                             },
                         }
                     ],
@@ -555,10 +1483,10 @@ class AgentRunTests(unittest.IsolatedAsyncioTestCase):
                 },
             ]
         )
-        agent = JarvisAgent()
-
-        first = await agent.run("明天开会", session_id="s1", provider=provider)
-        second = await agent.run("时长一小时", session_id="s1", provider=provider)
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = JarvisAgent(MemoryManager(Path(tmp) / "memory.json"))
+            first = await agent.run("明天开会", session_id="s1", provider=provider)
+            second = await agent.run("上午10点，时长一小时", session_id="s1", provider=provider)
 
         self.assertEqual(first["candidates"][0]["status"], "needs_input")
         self.assertEqual(second["candidates"][0]["calendar"]["end_time"], "2026-05-06T11:00:00")
@@ -566,7 +1494,7 @@ class AgentRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("单个日程/待办 event", followup_message)
         self.assertIn("current_events", followup_message)
         self.assertIn("Team meeting", followup_message)
-        self.assertIn("时长一小时", followup_message)
+        self.assertIn("上午10点，时长一小时", followup_message)
 
     async def test_followup_merges_only_selected_candidate(self):
         provider = SequenceProvider(
