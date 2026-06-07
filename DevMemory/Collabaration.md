@@ -516,4 +516,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Python/agent/preferences.py,Python/tests/test_agent_components.py,Python/agent/prompts.py,Python/agent/tools.py
 - Decision: Reminder due_time is the due/DDL time; early notification belongs only in alert_minutes_before_due. The preference post-processor now corrects shifted due times using the original user text.
 - Next: Restart Python gateway/Jarvis and retest creating a reminder with an explicit early alert.
+### 2026-06-08 02:00:37 +0800 | milestone
+- Summary: Implemented cron system-notification-only delivery and switched future Reminders early alerts to EKAlarm relativeOffset.
+- Files: Jarvis/App/HeartbeatManager.swift,Jarvis/NativeActions/EventKitTool.swift,Python/gateway.py,Python/agent/cron_memory.py,Python/agent/assistant_chat.py,Python/tests/test_agent_components.py
+- Decision: Cron reminders no longer show the Jarvis island; future reminder alerts use relativeOffset while existing absolute alarms remain readable but are not migrated.
+- Next: Restart Jarvis/Python gateway, create a near-future /cron and a 15:00 reminder to manually verify system notification and relative Reminders alert.
 

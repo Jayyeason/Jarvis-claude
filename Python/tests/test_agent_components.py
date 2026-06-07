@@ -667,7 +667,7 @@ class CronReplyFormattingTests(unittest.TestCase):
                 task = append_cron_task(manager, "20 0 * * *", "洗澡", "每天凌晨 0:20 提醒你洗澡")
                 reply = _cron_tasks_reply()
 
-        self.assertIn("⏰ **已有 Cron 弹窗提醒**", reply)
+        self.assertIn("⏰ **已有 Cron 系统通知提醒**", reply)
         self.assertIn("**时间**：每天 00:20", reply)
         self.assertIn(f"**ID**：`{task.id}`", reply)
         self.assertIn("**Cron**：`20 0 * * *`", reply)

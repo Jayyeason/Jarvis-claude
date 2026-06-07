@@ -33,7 +33,7 @@ def cron_help_text() -> str:
         "- `/cron-list` 查看已有 Cron 提醒\n"
         "- `/cron-delete <cron-id>` 删除某个 Cron 提醒\n"
         "- `/cron-help` 查看帮助\n\n"
-        "这些提醒会在 Jarvis 岛和系统通知中弹出；解析 `/cron` 自然语言时会调用当前启用的大模型。"
+        "这些提醒会通过 macOS 系统通知弹出；解析 `/cron` 自然语言时会调用当前启用的大模型。"
     )
 
 

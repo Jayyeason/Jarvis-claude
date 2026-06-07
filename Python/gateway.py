@@ -403,9 +403,9 @@ def _assistant_extraction_session_id(session_id: str) -> str:
 def _cron_tasks_reply() -> str:
     tasks = read_cron_tasks(app.state.agent.memory_manager)
     if not tasks:
-        return "⏰ **Cron 弹窗提醒**\n\n当前没有任务。使用 `/cron-help` 查看命令。"
+        return "⏰ **Cron 系统通知提醒**\n\n当前没有任务。使用 `/cron-help` 查看命令。"
 
-    lines = ["⏰ **已有 Cron 弹窗提醒**"]
+    lines = ["⏰ **已有 Cron 系统通知提醒**"]
     for idx, task in enumerate(tasks, start=1):
         lines.extend(
             [
@@ -553,13 +553,13 @@ async def assistant_chat(req: AssistantChatRequest):
     if is_cron_delete_request(message):
         target_id = cron_delete_id(message)
         if not target_id:
-            reply = "请使用 /cron-delete <cron-id> 删除 Cron 弹窗提醒。"
+            reply = "请使用 /cron-delete <cron-id> 删除 Cron 系统通知提醒。"
             action = "clarify"
         elif delete_cron_task(app.state.agent.memory_manager, target_id):
-            reply = f"已删除 Cron 弹窗提醒：{target_id}。"
+            reply = f"已删除 Cron 系统通知提醒：{target_id}。"
             action = "chat"
         else:
-            reply = f"没有找到 Cron 弹窗提醒：{target_id}。可以用 /cron-list 查看现有任务。"
+            reply = f"没有找到 Cron 系统通知提醒：{target_id}。可以用 /cron-list 查看现有任务。"
             action = "clarify"
         _append_assistant_message(session_id, "user", message)
         _append_assistant_message(session_id, "assistant", reply)
@@ -594,7 +594,7 @@ async def assistant_chat(req: AssistantChatRequest):
                 plan.get("body", ""),
             )
             reply = (
-                "⏰ **Cron 弹窗提醒已创建**\n\n"
+                "⏰ **Cron 系统通知提醒已创建**\n\n"
                 f"- **内容**：{task.title}\n"
                 f"- **时间**：{describe_cron_expr(task.cron_expr)}\n"
                 f"- **ID**：`{task.id}`\n"
@@ -606,7 +606,7 @@ async def assistant_chat(req: AssistantChatRequest):
             logger.info("POST /assistant/chat cron created id=%s elapsed=%.2fs", task.id, time.monotonic() - started)
             return AssistantChatResponse(session_id=session_id, action="chat", reply=reply)
         except ValueError as exc:
-            reply = f"没能创建 Cron 弹窗提醒：{exc}\n\n{cron_help_text()}"
+            reply = f"没能创建 Cron 系统通知提醒：{exc}\n\n{cron_help_text()}"
             _append_assistant_message(session_id, "user", message)
             _append_assistant_message(session_id, "assistant", reply)
             return AssistantChatResponse(session_id=session_id, action="clarify", reply=reply)
@@ -615,7 +615,7 @@ async def assistant_chat(req: AssistantChatRequest):
             return AssistantChatResponse(
                 session_id=session_id,
                 action="error",
-                reply="创建 Cron 弹窗提醒失败，请稍后重试。",
+                reply="创建 Cron 系统通知提醒失败，请稍后重试。",
                 error=str(exc),
             )
 
