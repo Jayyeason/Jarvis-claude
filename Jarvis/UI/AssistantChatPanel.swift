@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct AssistantChatPanel: View {
@@ -12,6 +13,9 @@ struct AssistantChatPanel: View {
     ]
     @State private var draft = ""
     @State private var isSending = false
+    @State private var inFlightTask: Task<Void, Never>?
+    @State private var inFlightRequestID: UUID?
+    @State private var inFlightPrompt: String?
     @State private var pendingCandidate: RecognitionCandidate?
     @State private var pendingAgentSessionID: String?
     @FocusState private var inputFocused: Bool
@@ -77,7 +81,7 @@ struct AssistantChatPanel: View {
                         HStack {
                             ProgressView()
                                 .scaleEffect(0.6)
-                            Text("思考中")
+                            Text("思考中，点击停止可中断")
                                 .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -104,19 +108,30 @@ struct AssistantChatPanel: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($inputFocused)
-                .onSubmit { send() }
+                .onSubmit {
+                    if !isSending {
+                        send()
+                    }
+                }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .disabled(isSending)
 
-            Button(action: send) {
-                Image(systemName: isSending ? "hourglass" : "paperplane.fill")
+            Button(action: {
+                if isSending {
+                    stopCurrentResponse()
+                } else {
+                    send()
+                }
+            }) {
+                Image(systemName: isSending ? "stop.fill" : "paperplane.fill")
                     .font(.system(size: 13, weight: .semibold))
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isSending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .tint(isSending ? .red : .blue)
+            .disabled(!isSending && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .help(isSending ? "停止生成" : "发送")
         }
         .padding(12)
     }
@@ -124,11 +139,14 @@ struct AssistantChatPanel: View {
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isSending else { return }
+        let requestID = UUID()
         draft = ""
         messages.append(AssistantChatMessage(role: .user, text: text))
         isSending = true
+        inFlightRequestID = requestID
+        inFlightPrompt = text
 
-        Task {
+        inFlightTask = Task {
             do {
                 if let pendingCandidate, let pendingAgentSessionID {
                     let response = try await GatewayClient.shared.chat(
@@ -139,25 +157,72 @@ struct AssistantChatPanel: View {
                             selectedCandidateIds: [pendingCandidate.id]
                         )
                     )
+                    guard await isCurrentInFlight(requestID) else { return }
                     await handleAgentResponse(response)
                 } else {
                     let response = try await GatewayClient.shared.assistantChat(
                         AssistantChatRequest(message: text, sessionId: sessionID)
                     )
+                    guard await isCurrentInFlight(requestID) else { return }
                     await handle(response)
                 }
+                await clearInFlightIfCurrent(requestID)
             } catch {
+                if isCancellationError(error) {
+                    await clearInFlightIfCurrent(requestID)
+                    return
+                }
                 await MainActor.run {
+                    guard inFlightRequestID == requestID else { return }
                     messages.append(AssistantChatMessage(role: .assistant, text: error.localizedDescription))
-                    isSending = false
-                    inputFocused = true
+                    clearInFlight()
                 }
             }
         }
     }
 
     @MainActor
+    private func stopCurrentResponse() {
+        guard isSending else { return }
+        inFlightTask?.cancel()
+        let prompt = inFlightPrompt
+        clearInFlight()
+        if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let prompt {
+            draft = prompt
+        }
+        messages.append(AssistantChatMessage(role: .assistant, text: "已停止生成，可以修改后重新发送。"))
+    }
+
+    @MainActor
+    private func isCurrentInFlight(_ requestID: UUID) -> Bool {
+        !Task.isCancelled && inFlightRequestID == requestID
+    }
+
+    @MainActor
+    private func clearInFlightIfCurrent(_ requestID: UUID) {
+        guard inFlightRequestID == requestID else { return }
+        clearInFlight()
+    }
+
+    @MainActor
+    private func clearInFlight() {
+        inFlightTask = nil
+        inFlightRequestID = nil
+        inFlightPrompt = nil
+        isSending = false
+        inputFocused = true
+    }
+
+    private func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+        return (error as? URLError)?.code == .cancelled
+    }
+
+    @MainActor
     private func handle(_ response: AssistantChatResponse) async {
+        guard !Task.isCancelled else { return }
         sessionID = response.sessionId
 
         switch response.action {
@@ -189,18 +254,17 @@ struct AssistantChatPanel: View {
             messages.append(AssistantChatMessage(role: .assistant, text: response.reply))
         }
 
-        isSending = false
-        inputFocused = true
+        clearInFlight()
     }
 
     @MainActor
     private func handleAgentResponse(_ agentResponse: AgentResponse, fallbackReply: String? = nil) async {
+        guard !Task.isCancelled else { return }
         pendingCandidate = nil
         pendingAgentSessionID = nil
 
         if await tryAutoWriteSingleCandidate(agentResponse) {
-            isSending = false
-            inputFocused = true
+            clearInFlight()
             return
         }
 
@@ -211,8 +275,7 @@ struct AssistantChatPanel: View {
                 role: .assistant,
                 text: agentResponse.reply ?? agentResponse.error ?? fallbackReply ?? "没有识别到可写入的日程或待办。"
             ))
-            isSending = false
-            inputFocused = true
+            clearInFlight()
             return
         }
 
@@ -221,24 +284,22 @@ struct AssistantChatPanel: View {
                 pendingCandidate = candidate
                 pendingAgentSessionID = agentResponse.sessionId
                 messages.append(AssistantChatMessage(role: .assistant, text: followupPrompt(for: candidate)))
-                isSending = false
-                inputFocused = true
+                clearInFlight()
                 return
             }
 
             messages.append(AssistantChatMessage(role: .assistant, text: candidateSummary(candidate)))
-            isSending = false
-            inputFocused = true
+            clearInFlight()
             return
         }
 
         messages.append(AssistantChatMessage(role: .assistant, text: multiCandidateSummary(candidates)))
-        isSending = false
-        inputFocused = true
+        clearInFlight()
     }
 
     @MainActor
     private func tryAutoWriteSingleCandidate(_ agentResponse: AgentResponse) async -> Bool {
+        guard !Task.isCancelled else { return true }
         guard agentResponse.type == "batch",
               let candidates = agentResponse.candidates,
               candidates.count == 1,
@@ -253,20 +314,26 @@ struct AssistantChatPanel: View {
             case .calendar(let result):
                 guard let start = result.startTime else { return false }
                 let end = result.endTime ?? start.addingTimeInterval(3600)
+                try Task.checkCancellation()
                 let conflicts = try await EventKitTool.shared.checkConflicts(start: start, end: end)
+                try Task.checkCancellation()
                 if !conflicts.isEmpty {
                     candidate.conflicts = conflicts
                     candidate.status = "conflict"
                     messages.append(AssistantChatMessage(role: .assistant, text: conflictSummary(candidate: candidate, conflicts: conflicts)))
                     return true
                 }
+                try Task.checkCancellation()
                 try await EventKitTool.shared.createEvent(result: result)
+                try Task.checkCancellation()
                 await sendAutoWriteFeedback(candidate, agentSessionID: agentResponse.sessionId)
                 TaskListStore.shared.reload()
                 messages.append(AssistantChatMessage(role: .assistant, text: autoWriteSummary(candidate: candidate, result: .calendar(result))))
                 return true
             case .reminder(let result):
+                try Task.checkCancellation()
                 try await EventKitTool.shared.createReminder(result: result)
+                try Task.checkCancellation()
                 await sendAutoWriteFeedback(candidate, agentSessionID: agentResponse.sessionId)
                 TaskListStore.shared.reload()
                 messages.append(AssistantChatMessage(role: .assistant, text: autoWriteSummary(candidate: candidate, result: .reminder(result))))
@@ -275,6 +342,9 @@ struct AssistantChatPanel: View {
                 return false
             }
         } catch {
+            if isCancellationError(error) {
+                return true
+            }
             messages.append(AssistantChatMessage(role: .assistant, text: error.localizedDescription))
             return true
         }
@@ -397,9 +467,14 @@ struct AssistantChatPanel: View {
     @MainActor
     private func executeList(_ plan: AssistantActionPlan) async {
         do {
+            try Task.checkCancellation()
             let items = try await findItems(for: plan)
+            try Task.checkCancellation()
             messages.append(AssistantChatMessage(role: .assistant, text: listSummary(items: items, plan: plan)))
         } catch {
+            if isCancellationError(error) {
+                return
+            }
             messages.append(AssistantChatMessage(role: .assistant, text: error.localizedDescription))
         }
     }
@@ -407,7 +482,9 @@ struct AssistantChatPanel: View {
     @MainActor
     private func prepareConfirmation(_ plan: AssistantActionPlan, fallbackReply: String) async {
         do {
+            try Task.checkCancellation()
             let items = try await findItems(for: plan)
+            try Task.checkCancellation()
             guard !items.isEmpty else {
                 messages.append(AssistantChatMessage(role: .assistant, text: noMatchText(for: plan)))
                 return
@@ -419,6 +496,9 @@ struct AssistantChatPanel: View {
             let operation = AssistantPendingOperation(plan: plan, items: items, fallbackReply: fallbackReply)
             messages.append(AssistantChatMessage(role: .assistant, text: "", operation: operation))
         } catch {
+            if isCancellationError(error) {
+                return
+            }
             messages.append(AssistantChatMessage(role: .assistant, text: error.localizedDescription))
         }
     }
@@ -426,7 +506,9 @@ struct AssistantChatPanel: View {
     @MainActor
     private func executeOperation(_ plan: AssistantActionPlan, fallbackReply: String) async {
         do {
+            try Task.checkCancellation()
             let items = try await findItems(for: plan)
+            try Task.checkCancellation()
             guard !items.isEmpty else {
                 messages.append(AssistantChatMessage(role: .assistant, text: noMatchText(for: plan)))
                 return
@@ -442,16 +524,22 @@ struct AssistantChatPanel: View {
 
             let item = items[0]
             if item.kind == "calendar" {
+                try Task.checkCancellation()
                 try await EventKitTool.shared.updateEventAlerts(ids: [item.rawID], minutesBeforeStart: minutes)
             } else {
+                try Task.checkCancellation()
                 try await EventKitTool.shared.updateReminderAlerts(ids: [item.rawID], minutesBeforeDue: minutes)
             }
+            try Task.checkCancellation()
             TaskListStore.shared.reload()
             messages.append(AssistantChatMessage(
                 role: .assistant,
                 text: "已将\(item.kind == "calendar" ? "日程" : "待办")「\(item.title)」改为提前 \(minutes) 分钟提醒。"
             ))
         } catch {
+            if isCancellationError(error) {
+                return
+            }
             messages.append(AssistantChatMessage(role: .assistant, text: error.localizedDescription))
         }
     }

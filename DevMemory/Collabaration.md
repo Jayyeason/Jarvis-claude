@@ -486,4 +486,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Python/agent/assistant_chat.py,Python/gateway.py,Python/tests/test_agent_components.py
 - Decision: Planner parse/runtime failures in assistant chat should degrade to normal chat; recall-style questions like '我叫什么' and '我在哪里' must not trigger memory update planning.
 - Next: Move toward a unified chat agent with schedule/reminder operations exposed as controlled tools instead of broad keyword pre-routing.
+### 2026-06-08 00:44:25 +0800 | milestone
+- Summary: Added cancellable assistant chat sends: the send button becomes a stop button while a response is in flight, cancellation restores the prompt for editing and suppresses cancellation errors.
+- Files: Jarvis/UI/AssistantChatPanel.swift
+- Decision: Assistant chat should keep the input editable during in-flight requests and cancel the Swift task before allowing resend; local follow-up operations check Task cancellation before appending or writing.
+- Next: Consider server-side cancellation tokens if backend responses continue after client disconnects.
 
