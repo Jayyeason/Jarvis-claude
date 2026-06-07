@@ -521,4 +521,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Jarvis/App/HeartbeatManager.swift,Jarvis/NativeActions/EventKitTool.swift,Python/gateway.py,Python/agent/cron_memory.py,Python/agent/assistant_chat.py,Python/tests/test_agent_components.py
 - Decision: Cron reminders no longer show the Jarvis island; future reminder alerts use relativeOffset while existing absolute alarms remain readable but are not migrated.
 - Next: Restart Jarvis/Python gateway, create a near-future /cron and a 15:00 reminder to manually verify system notification and relative Reminders alert.
+### 2026-06-08 02:10:22 +0800 | milestone
+- Summary: Diagnosed cron reminder delivery: heartbeat/WAL showed cron fired, but NotificationTool failed with UNErrorDomain error 1. Added authorization-state checks, foreground notification presentation delegate, and Boolean send results.
+- Files: Jarvis/NativeActions/NotificationTool.swift,Jarvis/App/HeartbeatManager.swift
+- Decision: Cron remains system-notification-only; notification failures now log explicit authorization state, and foreground notifications present as banner/list/sound.
+- Next: Restart Jarvis and enable Jarvis notifications in macOS Settings if logs report authorization denied.
 
