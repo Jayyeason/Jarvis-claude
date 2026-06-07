@@ -495,6 +495,25 @@ async def _assistant_schedule_extraction_response(
     )
 
 
+async def _assistant_plain_chat_response(
+    session_id: str,
+    message: str,
+    started: float,
+    log_label: str = "done",
+) -> AssistantChatResponse:
+    history = _assistant_history(session_id)
+    messages = (history + [{"role": "user", "content": message}])[-20:]
+    reply = await app.state.active_provider.chat(
+        messages=messages,
+        system_prompt=assistant_system_prompt(app.state.agent.memory_manager.render_prompt_context()),
+    )
+    reply = (reply or "").strip() or "我没有生成有效回复。"
+    _append_assistant_message(session_id, "user", message)
+    _append_assistant_message(session_id, "assistant", reply)
+    logger.info("POST /assistant/chat %s session=%s elapsed=%.2fs", log_label, session_id, time.monotonic() - started)
+    return AssistantChatResponse(session_id=session_id, action="chat", reply=reply)
+
+
 @app.post("/assistant/chat", response_model=AssistantChatResponse)
 async def assistant_chat(req: AssistantChatRequest):
     started = time.monotonic()
@@ -759,26 +778,21 @@ async def assistant_chat(req: AssistantChatRequest):
                     action_plan=plan,
                 )
         except Exception as e:
-            logger.exception("POST /assistant/chat plan failed session=%s", session_id)
-            return AssistantChatResponse(
-                session_id=session_id,
-                action="error",
-                reply="我没能生成可执行的本地操作计划，请换个说法再试一次。",
-                error=str(e),
-            )
+            logger.warning("POST /assistant/chat plan failed; falling back to chat session=%s error=%s", session_id, e)
+            logger.debug("POST /assistant/chat plan fallback traceback session=%s", session_id, exc_info=True)
+            try:
+                return await _assistant_plain_chat_response(session_id, message, started, log_label="plan-fallback")
+            except Exception as chat_exc:
+                logger.exception("POST /assistant/chat plan fallback failed session=%s", session_id)
+                return AssistantChatResponse(
+                    session_id=session_id,
+                    action="error",
+                    reply="对话失败，请稍后重试。",
+                    error=str(chat_exc),
+                )
 
     try:
-        history = _assistant_history(session_id)
-        messages = (history + [{"role": "user", "content": message}])[-20:]
-        reply = await app.state.active_provider.chat(
-            messages=messages,
-            system_prompt=assistant_system_prompt(app.state.agent.memory_manager.render_prompt_context()),
-        )
-        reply = (reply or "").strip() or "我没有生成有效回复。"
-        _append_assistant_message(session_id, "user", message)
-        _append_assistant_message(session_id, "assistant", reply)
-        logger.info("POST /assistant/chat done session=%s elapsed=%.2fs", session_id, time.monotonic() - started)
-        return AssistantChatResponse(session_id=session_id, action="chat", reply=reply)
+        return await _assistant_plain_chat_response(session_id, message, started)
     except Exception as e:
         logger.exception("POST /assistant/chat failed session=%s", session_id)
         return AssistantChatResponse(

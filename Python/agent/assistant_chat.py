@@ -95,12 +95,22 @@ MEMORY_ACTION_HINTS = [
     "我的名字",
     "我叫",
     "我住在",
-    "我在",
     "我的城市",
     "我偏好",
     "我喜欢",
     "我希望你",
     "以后回答",
+]
+
+MEMORY_RECALL_QUESTION_PATTERNS = [
+    r"我叫\s*什么",
+    r"我\s*什么\s*名字",
+    r"我的名字(?:是)?\s*什么",
+    r"你(?:还)?(?:知道|记得)我的名字吗",
+    r"我(?:在|住在)\s*(?:哪里|哪儿|哪)",
+    r"我(?:是)?哪里人",
+    r"我的城市(?:是)?\s*(?:哪里|哪儿|哪)",
+    r"你(?:还)?(?:知道|记得)我(?:在|住在)哪(?:里|儿)?吗",
 ]
 
 CREATE_ACTION_HINTS = [
@@ -313,7 +323,13 @@ def is_memory_update_request(message: str) -> bool:
         return False
     if _looks_like_new_schedule_creation(text) or is_local_operation_request(text):
         return False
+    if _looks_like_memory_recall_question(text):
+        return False
     return _contains_any(text, MEMORY_ACTION_HINTS)
+
+
+def _looks_like_memory_recall_question(text: str) -> bool:
+    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in MEMORY_RECALL_QUESTION_PATTERNS)
 
 
 def is_cron_help_request(message: str) -> bool:

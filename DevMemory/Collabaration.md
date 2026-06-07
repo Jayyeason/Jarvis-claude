@@ -481,4 +481,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Python/agent/cron_memory.py,Python/gateway.py,Jarvis/UI/AssistantChatPanel.swift,Python/tests/test_agent_components.py
 - Decision: Cron replies show user-facing schedule text plus raw cron/id as secondary inline-code metadata; assistant chat renders Markdown via AttributedString.
 - Next: None
+### 2026-06-08 00:36:45 +0800 | milestone
+- Summary: Added assistant planner fallback to plain chat and tightened memory-update routing for recall questions.
+- Files: Python/agent/assistant_chat.py,Python/gateway.py,Python/tests/test_agent_components.py
+- Decision: Planner parse/runtime failures in assistant chat should degrade to normal chat; recall-style questions like '我叫什么' and '我在哪里' must not trigger memory update planning.
+- Next: Move toward a unified chat agent with schedule/reminder operations exposed as controlled tools instead of broad keyword pre-routing.
 

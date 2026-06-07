@@ -49,7 +49,7 @@ from agent.validator import AgentValidationError, validate_agent_result
 from providers.openai_compat import OpenAICompatProvider
 from providers.local_model_registry import LocalModelRegistry, safe_model_id
 from providers.provider_factory import create_provider
-from contracts import AssistantActionPlan
+from contracts import AssistantActionPlan, AssistantChatRequest
 from gateway import (
     _active_api_key,
     _assistant_extraction_session_id,
@@ -60,6 +60,7 @@ from gateway import (
     _set_active_api_key,
     _upsert_api_key,
     app,
+    assistant_chat,
 )
 
 
@@ -619,8 +620,54 @@ class AssistantChatIntentTests(unittest.TestCase):
     def test_memory_update_request_detection(self):
         self.assertTrue(is_memory_update_request("以后称呼我为 khalil"))
         self.assertTrue(is_memory_update_request("记住我偏好简洁回答"))
+        self.assertTrue(is_memory_update_request("我叫 khalil"))
+        self.assertTrue(is_memory_update_request("我的城市是上海"))
         self.assertFalse(is_memory_update_request("我今天有点累"))
         self.assertFalse(is_memory_update_request("默认提醒时间改为15min"))
+        self.assertFalse(is_memory_update_request("我叫什么"))
+        self.assertFalse(is_memory_update_request("我在哪里"))
+        self.assertFalse(is_memory_update_request("你知道我的名字吗"))
+
+    def test_assistant_chat_falls_back_to_plain_chat_when_planner_returns_invalid_json(self):
+        class InvalidPlannerProvider:
+            def __init__(self):
+                self.calls = []
+
+            async def chat(self, **kwargs):
+                self.calls.append(kwargs)
+                if len(self.calls) == 1:
+                    return "not json"
+                return "这是普通聊天回复。"
+
+        provider = InvalidPlannerProvider()
+        previous_agent = getattr(app.state, "agent", None)
+        previous_provider = getattr(app.state, "active_provider", None)
+        previous_provider_id = getattr(app.state, "active_provider_id", None)
+        previous_model_id = getattr(app.state, "active_model_id", None)
+        previous_sessions = getattr(app.state, "assistant_sessions", None)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                app.state.agent = SimpleNamespace(memory_manager=MemoryManager(Path(tmp) / "memory.json"))
+                app.state.active_provider = provider
+                app.state.active_provider_id = "test"
+                app.state.active_model_id = "test"
+                app.state.assistant_sessions = {}
+
+                response = asyncio.run(
+                    assistant_chat(
+                        AssistantChatRequest(message="查看最近2天日程", session_id="planner-fallback-test")
+                    )
+                )
+        finally:
+            app.state.agent = previous_agent
+            app.state.active_provider = previous_provider
+            app.state.active_provider_id = previous_provider_id
+            app.state.active_model_id = previous_model_id
+            app.state.assistant_sessions = previous_sessions
+
+        self.assertEqual(response.action, "chat")
+        self.assertEqual(response.reply, "这是普通聊天回复。")
+        self.assertEqual(len(provider.calls), 2)
 
     def test_planner_accepts_memory_action_plan(self):
         class MemoryProvider:
