@@ -56,9 +56,9 @@ REMINDER_SCHEMA = {
         "notes": {"type": "string", "description": "备注，识别不到则省略"},
         "location": {"type": "string", "description": "地点文字，识别不到则省略"},
         "due_date": {"type": "string", "description": "到期日期 YYYY-MM-DD，识别不到则省略"},
-        "due_time": {"type": "string", "description": "到期时间 HH:MM，识别不到则省略"},
+        "due_time": {"type": "string", "description": "到期/DDL 时间 HH:MM，不要因为提前提醒而改早；识别不到则省略"},
         "recurrence": RECURRENCE_SCHEMA,
-        "alert_minutes_before_due": {"type": "integer", "minimum": 0, "description": "到期前多少分钟提醒"},
+        "alert_minutes_before_due": {"type": "integer", "minimum": 0, "description": "到期前多少分钟提醒，例如 17:00 到期提前 10 分钟提醒时填 10"},
         "list_name": {"type": "string", "description": "目标提醒列表名称，默认“提醒事项”；系统写入提醒事项列表"},
         "priority": {
             "type": "string",

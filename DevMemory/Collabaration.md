@@ -511,4 +511,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Python/agent/heartbeat.py,Python/tests/test_agent_components.py,Python/agent/cron_memory.py,Python/agent/assistant_chat.py
 - Decision: Heartbeat rules should evaluate wall-clock schedules in the gateway machine's local timezone; cron help/prompt now describes island plus system notifications without creating Calendar/Reminder items.
 - Next: Restart Jarvis/Python gateway and verify a near-future /cron reminder fires at local wall-clock time.
+### 2026-06-08 01:44:47 +0800 | milestone
+- Summary: Fixed reminder explicit alert normalization so phrases like '17点提交，提前十分钟提醒' preserve due_time=17:00 and write alert_minutes_before_due=10 even if model output shifted the due time.
+- Files: Python/agent/preferences.py,Python/tests/test_agent_components.py,Python/agent/prompts.py,Python/agent/tools.py
+- Decision: Reminder due_time is the due/DDL time; early notification belongs only in alert_minutes_before_due. The preference post-processor now corrects shifted due times using the original user text.
+- Next: Restart Python gateway/Jarvis and retest creating a reminder with an explicit early alert.
 

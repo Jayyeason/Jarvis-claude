@@ -184,6 +184,66 @@ class MemoryManagerTests(unittest.TestCase):
         self.assertEqual(candidate["status"], "needs_input")
         self.assertIn("time", candidate["missing_fields"])
 
+    def test_preference_engine_keeps_reminder_due_time_when_explicit_alert_is_chinese(self):
+        result = validate_agent_result(
+            {
+                "type": "batch",
+                "candidates": [
+                    {
+                        "id": "candidate_1",
+                        "kind": "reminder",
+                        "reminder": {
+                            "title": "提交课程作业",
+                            "due_date": "2026-06-08",
+                            "due_time": "16:50",
+                        },
+                    }
+                ],
+            }
+        )
+
+        applied = PreferenceEngine(MemoryManager(Path(tempfile.gettempdir()) / "memory.json")).apply(
+            result,
+            "明天17点提醒我提交课程作业，提前十分钟提醒",
+        )
+        applied = validate_agent_result(applied)
+
+        reminder = applied["candidates"][0]["reminder"]
+        self.assertEqual(reminder["due_time"], "17:00")
+        self.assertEqual(reminder["alert_minutes_before_due"], 10)
+        self.assertIn(
+            "reminder.alert_minutes_before_due",
+            {item["field"] for item in applied["candidates"][0]["applied_preferences"]},
+        )
+
+    def test_preference_engine_corrects_shifted_reminder_due_date_datetime(self):
+        result = validate_agent_result(
+            {
+                "type": "batch",
+                "candidates": [
+                    {
+                        "id": "candidate_1",
+                        "kind": "reminder",
+                        "reminder": {
+                            "title": "提交课程作业",
+                            "due_date": "2026-06-08T16:50:00",
+                        },
+                    }
+                ],
+            }
+        )
+
+        applied = PreferenceEngine(MemoryManager(Path(tempfile.gettempdir()) / "memory.json")).apply(
+            result,
+            "明天17:00提交课程作业，提前10分钟提醒",
+        )
+        applied = validate_agent_result(applied)
+
+        reminder = applied["candidates"][0]["reminder"]
+        self.assertEqual(reminder["due_date"], "2026-06-08")
+        self.assertEqual(reminder["due_time"], "17:00")
+        self.assertEqual(reminder["alert_minutes_before_due"], 10)
+
     def test_preference_engine_applies_calendar_duration_and_alert(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "memory.json"
