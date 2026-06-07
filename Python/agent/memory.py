@@ -189,6 +189,8 @@ class MemoryManager:
         tmp = path.with_name(f".{path.name}.tmp")
         tmp.write_bytes(data)
         tmp.replace(path)
+        if file_id == "user":
+            self._normalize_user_markdown()
         return self._managed_file_payload(file_id)
 
     def update_preferences(self, values: dict[str, Any], source: str = "manual") -> dict[str, Any]:
@@ -217,6 +219,7 @@ class MemoryManager:
 
         self._write_memory_data(data)
         self._sync_user_preferences_markdown()
+        self._normalize_user_markdown()
         return self.preferences_status()
 
     def set_user_profile(self, field: str, value: str) -> dict[str, str]:
@@ -233,6 +236,7 @@ class MemoryManager:
         path = self.directory / "user.md"
         current = path.read_text(encoding="utf-8") if path.exists() else "# user.md\n"
         updated = self._set_markdown_kv(current, USER_PROFILE_HEADING, label, cleaned_value)
+        updated = self._normalize_user_markdown_text(updated)
         path.write_text(updated, encoding="utf-8")
         return {"tool": "set_user_profile", "field": key, "label": label, "value": cleaned_value}
 
@@ -250,6 +254,7 @@ class MemoryManager:
         path = self.directory / "user.md"
         current = path.read_text(encoding="utf-8") if path.exists() else "# user.md\n"
         updated = self._append_markdown_bullet(current, heading, cleaned_content)
+        updated = self._normalize_user_markdown_text(updated)
         path.write_text(updated, encoding="utf-8")
         return {"tool": "append_user_memory", "category": key, "heading": heading.lstrip("# "), "value": cleaned_content}
 
@@ -465,6 +470,74 @@ class MemoryManager:
         lines.insert(insert_at, replacement)
         return "\n".join(lines).rstrip() + "\n"
 
+    def _normalize_user_markdown(self) -> None:
+        path = self.directory / "user.md"
+        if not path.exists():
+            return
+        current = path.read_text(encoding="utf-8")
+        updated = self._normalize_user_markdown_text(current)
+        if updated != current:
+            path.write_text(updated, encoding="utf-8")
+
+    def _normalize_user_markdown_text(self, text: str) -> str:
+        city = self._first_markdown_bullet(text, "## 城市")
+        current_city = self._markdown_kv_value(text, USER_PROFILE_HEADING, USER_PROFILE_FIELDS["city"])
+        updated = text
+        if city and (not current_city or current_city == "auto"):
+            updated = self._set_markdown_kv(updated, USER_PROFILE_HEADING, USER_PROFILE_FIELDS["city"], city)
+        updated = self._remove_markdown_sections(updated, ["## 城市"])
+        return updated
+
+    def _markdown_kv_value(self, text: str, heading: str, label: str) -> Optional[str]:
+        lines = text.splitlines()
+        if not any(line.strip() == heading for line in lines):
+            return None
+        start, end = self._section_range(lines, heading)
+        target_prefix = f"- {label}："
+        for idx in range(start + 1, end):
+            stripped = lines[idx].strip()
+            if stripped.startswith(target_prefix):
+                value = stripped[len(target_prefix):].strip()
+                return value or None
+        return None
+
+    def _first_markdown_bullet(self, text: str, heading: str) -> Optional[str]:
+        lines = text.splitlines()
+        if not any(line.strip() == heading for line in lines):
+            return None
+        start, end = self._section_range(lines, heading)
+        for idx in range(start + 1, end):
+            stripped = lines[idx].strip()
+            if stripped.startswith("- "):
+                value = stripped[2:].strip()
+                return value or None
+        return None
+
+    def _remove_markdown_sections(self, text: str, headings: list[str]) -> str:
+        heading_values = set(headings)
+        lines = text.splitlines()
+        updated: list[str] = []
+        idx = 0
+        while idx < len(lines):
+            if lines[idx].strip() not in heading_values:
+                updated.append(lines[idx])
+                idx += 1
+                continue
+
+            idx += 1
+            while idx < len(lines):
+                stripped = lines[idx].lstrip()
+                if stripped.startswith("## ") and not stripped.startswith("### "):
+                    break
+                idx += 1
+
+            while updated and not updated[-1].strip():
+                updated.pop()
+            if idx < len(lines) and updated:
+                updated.append("")
+
+        return "\n".join(updated).rstrip() + "\n"
+
     def _append_markdown_bullet(self, text: str, heading: str, content: str) -> str:
         lines = self._ensure_markdown_section(text, heading)
         start, end = self._section_range(lines, heading)
@@ -527,6 +600,7 @@ class MemoryManager:
         return normalized is not None
 
     def render_prompt_context(self) -> str:
+        self._normalize_user_markdown()
         data = self._load_memory_data()
         preferences = data.get("preferences", data) if isinstance(data, dict) else {}
         prefs = self.load_preferences()
@@ -594,6 +668,8 @@ class MemoryManager:
 
     def _managed_file_payload(self, file_id: str) -> dict[str, Any]:
         meta = self._managed_file_meta(file_id)
+        if file_id == "user":
+            self._normalize_user_markdown()
         path = self.directory / meta["filename"]
         content, truncated, byte_size = self._read_managed_file(path)
         return {

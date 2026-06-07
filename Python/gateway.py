@@ -449,7 +449,10 @@ def _execute_memory_actions(plan) -> tuple[list[dict[str, str]], bool]:
                 for key, value in status.get("preferences", {}).items()
                 if key in args
             }
-            updates.append({"tool": "update_schedule_preferences", **updated})
+            if updated:
+                updates.append({"tool": "update_schedule_preferences", **updated})
+            else:
+                updates.append({"tool": "update_schedule_preferences", "status": "skipped_no_valid_fields"})
         elif action.tool == "propose_soul_change":
             requires_confirmation = True
             updates.append(memory.propose_soul_change(args.get("section", ""), args.get("proposal", "")))
@@ -731,12 +734,20 @@ async def assistant_chat(req: AssistantChatRequest):
                 )
             elif plan.action == "update_memory" and plan.memory_actions:
                 updates, requires_confirmation = _execute_memory_actions(plan)
+                actual_writes = [
+                    item for item in updates
+                    if item.get("status") not in {"skipped_low_confidence", "needs_confirmation", "skipped_no_valid_fields"}
+                    and item.get("tool") != "propose_soul_change"
+                ]
                 if requires_confirmation:
                     action = "clarify"
                     reply = plan.reply or "这项 Memory 修改需要你确认后再写入。"
                     if not reply.endswith("。"):
                         reply += "。"
                     reply += " 我还没有修改 soul.md。"
+                elif not actual_writes:
+                    action = "clarify"
+                    reply = "我没有写入 Memory：没有识别到可保存的有效字段。"
                 else:
                     action = "chat"
                     reply = plan.reply or "已写入 Memory。"

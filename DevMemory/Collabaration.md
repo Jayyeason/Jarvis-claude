@@ -491,4 +491,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Jarvis/UI/AssistantChatPanel.swift
 - Decision: Assistant chat should keep the input editable during in-flight requests and cancel the Swift task before allowing resend; local follow-up operations check Task cancellation before appending or writing.
 - Next: Consider server-side cancellation tokens if backend responses continue after client disconnects.
+### 2026-06-08 00:56:53 +0800 | milestone
+- Summary: Fixed assistant creation and memory profile routing: explicit timed meetings route to schedule extraction, simple profile statements like '我在上海' force controlled set_user_profile, and legacy user.md '## 城市' is migrated into '## 用户资料' then removed.
+- Files: Python/agent/assistant_chat.py,Python/agent/memory.py,Python/gateway.py,Python/tests/test_agent_components.py
+- Decision: New calendar/reminder creation should not ask for confirmation when fields are ready; user.md should not keep a standalone city section; Memory replies must only say written when a valid tool write happened.
+- Next: Restart the Python gateway/Jarvis app to load the routing and memory migration changes.
 

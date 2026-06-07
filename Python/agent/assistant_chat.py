@@ -5,7 +5,7 @@ import re
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
-from contracts import AssistantActionPlan
+from contracts import AssistantActionPlan, AssistantMemoryAction
 
 
 SCHEDULE_ACTION_HINTS = [
@@ -29,6 +29,9 @@ SCHEDULE_ACTION_HINTS = [
     "买",
     "电话",
 ]
+
+CALENDAR_EVENT_HINTS = ["开会", "会议", "吃饭", "面试", "课程", "活动", "出差", "看展", "视频会议"]
+REMINDER_TASK_HINTS = ["记得", "提交", "交作业", "缴费", "报名", "买", "ddl", "截止"]
 
 TIME_HINTS = [
     "今天",
@@ -113,6 +116,22 @@ MEMORY_RECALL_QUESTION_PATTERNS = [
     r"你(?:还)?(?:知道|记得)我(?:在|住在)哪(?:里|儿)?吗",
 ]
 
+SCHEDULE_QUERY_HINTS = [
+    "哪里",
+    "哪儿",
+    "什么",
+    "有哪些",
+    "有什么",
+    "谁",
+    "为什么",
+    "为何",
+    "怎么",
+    "怎样",
+    "吗",
+    "？",
+    "?",
+]
+
 CREATE_ACTION_HINTS = [
     "添加",
     "加个",
@@ -195,6 +214,38 @@ def preference_reply(values: dict[str, Any]) -> str:
     return "已更新偏好并写入 Memory：" + "；".join(parts)
 
 
+def parse_profile_update(message: str) -> Optional[dict[str, str]]:
+    text = _normalize_text(message)
+    if not text or _looks_like_memory_recall_question(text):
+        return None
+
+    patterns = [
+        ("city", r"^我在(?!哪里|哪儿|哪|干嘛|做什么)(?P<value>[^，。；;!?？]{1,24})$"),
+        ("city", r"^我住在(?P<value>[^，。；;!?？]{1,24})$"),
+        ("city", r"^我的城市是(?P<value>[^，。；;!?？]{1,24})$"),
+        ("preferred_name", r"^我叫(?P<value>[^，。；;!?？]{1,24})$"),
+    ]
+    for field, pattern in patterns:
+        match = re.fullmatch(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        value = match.group("value").strip()
+        if _invalid_profile_value(field, value):
+            return None
+        return {"field": field, "value": value}
+    return None
+
+
+def _invalid_profile_value(field: str, value: str) -> bool:
+    if not value:
+        return True
+    if field == "city":
+        if value in {"家", "公司", "学校", "办公室", "宿舍", "会议室"}:
+            return True
+        return _contains_any(value, ["开会", "上课", "吃饭", "工作", "路上", "出差中"])
+    return False
+
+
 def is_schedule_request(message: str) -> bool:
     text = _normalize_text(message).lower()
     if not text or parse_preference_update(text):
@@ -228,17 +279,31 @@ def _looks_like_new_schedule_creation(text: str) -> bool:
         return False
     if _contains_any(text, ["推迟", "延后", "改到", "改成", "修改", "更新", "挪到", "调整"]):
         return False
+    if "提前" in text and "提醒" not in text:
+        return False
     explicit_create = _contains_any(text, CREATE_ACTION_HINTS)
     if explicit_create:
         return True
+    if _looks_like_schedule_query(text):
+        return False
     if _looks_like_existing_alert_target(text):
         return False
 
     duration_or_alert = _contains_any(text, ["持续", "时长", "大概", "大约", "左右", "提醒我"])
-    calendar_event = _contains_any(text, ["开会", "会议", "吃饭", "面试", "课程", "活动", "出差", "看展"])
-    reminder_task = _contains_any(text, ["记得", "提交", "交作业", "缴费", "报名", "买"])
+    calendar_event = _contains_any(text, CALENDAR_EVENT_HINTS)
+    reminder_task = _contains_any(text, REMINDER_TASK_HINTS)
+    has_concrete_time = _extract_time_of_day(text) is not None
+
+    if has_concrete_time and (calendar_event or reminder_task):
+        return True
 
     return duration_or_alert and (calendar_event or reminder_task)
+
+
+def _looks_like_schedule_query(text: str) -> bool:
+    if _contains_any(text, ["提醒我", "记得", "帮我", "给我", *CREATE_ACTION_HINTS]):
+        return False
+    return _contains_any(text, SCHEDULE_QUERY_HINTS)
 
 
 def _looks_like_create_confirmation(text: str) -> bool:
@@ -325,11 +390,29 @@ def is_memory_update_request(message: str) -> bool:
         return False
     if _looks_like_memory_recall_question(text):
         return False
+    if parse_profile_update(message):
+        return True
+    if _looks_like_user_profile_statement(text):
+        return True
     return _contains_any(text, MEMORY_ACTION_HINTS)
 
 
 def _looks_like_memory_recall_question(text: str) -> bool:
     return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in MEMORY_RECALL_QUESTION_PATTERNS)
+
+
+def _looks_like_user_profile_statement(text: str) -> bool:
+    if _contains_any(text, ["今天", "明天", "现在", "正在", "刚刚", "待会", "开会", "上课", "吃饭", "工作", "家里"]):
+        return False
+    return any(
+        re.fullmatch(pattern, text, flags=re.IGNORECASE)
+        for pattern in [
+            r"我在(?!哪里|哪儿|哪|干嘛|做什么).{1,24}",
+            r"我住在.{1,24}",
+            r"我的城市是.{1,24}",
+            r"我叫.{1,24}",
+        ]
+    )
 
 
 def is_cron_help_request(message: str) -> bool:
@@ -503,7 +586,7 @@ def assistant_action_planner_prompt(now: datetime, memory_context: str = "") -> 
         "- 待办 reminder 是交作业、缴费、提交材料、报名截止、DDL、买东西、记得做某事。\n"
         "- 只有用户明确要求长期记住时才用 update_memory；普通闲聊、情绪、临时状态不要写 Memory。\n"
         "- “以后称呼我为 khalil” => action=update_memory，tool=set_user_profile，field=preferred_name，value=khalil。\n"
-        "- “记住我住在上海”/“我的城市是上海” => tool=set_user_profile，field=city，value=上海。\n"
+        "- “记住我住在上海”/“我的城市是上海”/“我在上海” => tool=set_user_profile，field=city，value=上海。\n"
         "- “我偏好简洁回答”/“以后回答简洁一点” => tool=append_user_memory，category=style，content=偏好简洁回答。\n"
         "- “记住我不吃香菜” => tool=append_user_memory，category=preference，content=不吃香菜。\n"
         "- “记住我的护照号/身份证/密码/密钥...”等敏感隐私 => action=clarify 或 chat，不要写 Memory。\n"
@@ -570,6 +653,19 @@ def normalize_action_plan(plan: AssistantActionPlan, message: str, now: datetime
         plan.action = "update_preference"
         plan.preference_values = parsed_preferences
         plan.reply = preference_reply(parsed_preferences)
+    parsed_profile = parse_profile_update(message)
+    if parsed_profile and plan.action in {"chat", "clarify", "update_memory"}:
+        plan.action = "update_memory"
+        plan.memory_actions = [
+            AssistantMemoryAction(
+                tool="set_user_profile",
+                arguments=parsed_profile,
+                confidence=0.95,
+                requires_confirmation=False,
+            )
+        ]
+        label = "城市" if parsed_profile["field"] == "city" else "称呼偏好"
+        plan.reply = f"已更新 Memory：{label}：{parsed_profile['value']}。"
     if plan.action in {"delete_items", "reschedule_item"}:
         plan.confirmation_required = True
     if plan.action == "update_alert":

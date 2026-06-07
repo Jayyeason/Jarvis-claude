@@ -27,6 +27,7 @@ from agent.assistant_chat import (
     is_slash_list_request,
     plan_assistant_action,
     plan_cron_task,
+    parse_profile_update,
     parse_preference_update,
     preference_reply,
 )
@@ -335,7 +336,9 @@ class MemoryManagerTests(unittest.TestCase):
         self.assertNotIn("- old value", text)
         self.assertIn("## 日程与提醒事项偏好", text)
         self.assertNotIn("## 日历与提醒偏好", text)
-        self.assertIn("## 城市\n- 上海", text)
+        self.assertNotIn("## 城市", text)
+        self.assertIn("## 用户资料", text)
+        self.assertIn("- 城市：上海", text)
         self.assertIn("## 自定义\n- 保留这行", text)
 
     def test_update_preferences_appends_user_markdown_section_when_missing(self):
@@ -349,7 +352,8 @@ class MemoryManagerTests(unittest.TestCase):
             text = user_path.read_text(encoding="utf-8")
             prompt_context = manager.render_prompt_context()
 
-        self.assertIn("## 城市\n- 北京", text)
+        self.assertNotIn("## 城市", text)
+        self.assertIn("- 城市：北京", text)
         self.assertIn("## 日程与提醒事项偏好", text)
         self.assertIn("- 提醒默认到期时间：20:00", text)
         self.assertIn("20:00", prompt_context)
@@ -390,6 +394,25 @@ class MemoryManagerTests(unittest.TestCase):
         self.assertIn("- 称呼偏好：Khalil", text)
         self.assertNotIn("- 称呼偏好：khalil\n- 称呼偏好：Khalil", text)
         self.assertIn("Khalil", prompt_context)
+
+    def test_set_user_profile_removes_legacy_city_section(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            user_path = Path(tmp) / "user.md"
+            user_path.write_text(
+                "# user.md\n\n"
+                "## 城市\n"
+                "- auto\n\n"
+                "## 用户资料\n"
+                "- 城市：auto\n",
+                encoding="utf-8",
+            )
+
+            manager.set_user_profile("city", "上海")
+            text = user_path.read_text(encoding="utf-8")
+
+        self.assertNotIn("## 城市", text)
+        self.assertIn("## 用户资料\n- 城市：上海", text)
 
     def test_append_user_memory_deduplicates_long_term_preference(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -621,12 +644,41 @@ class AssistantChatIntentTests(unittest.TestCase):
         self.assertTrue(is_memory_update_request("以后称呼我为 khalil"))
         self.assertTrue(is_memory_update_request("记住我偏好简洁回答"))
         self.assertTrue(is_memory_update_request("我叫 khalil"))
+        self.assertTrue(is_memory_update_request("我在上海"))
         self.assertTrue(is_memory_update_request("我的城市是上海"))
         self.assertFalse(is_memory_update_request("我今天有点累"))
+        self.assertFalse(is_memory_update_request("我在开会"))
         self.assertFalse(is_memory_update_request("默认提醒时间改为15min"))
         self.assertFalse(is_memory_update_request("我叫什么"))
         self.assertFalse(is_memory_update_request("我在哪里"))
         self.assertFalse(is_memory_update_request("你知道我的名字吗"))
+
+    def test_profile_update_parser_extracts_city_statement(self):
+        self.assertEqual(parse_profile_update("我在上海"), {"field": "city", "value": "上海"})
+        self.assertEqual(parse_profile_update("我住在北京"), {"field": "city", "value": "北京"})
+        self.assertEqual(parse_profile_update("我叫 Khalil"), {"field": "preferred_name", "value": "Khalil"})
+        self.assertIsNone(parse_profile_update("我在哪里"))
+        self.assertIsNone(parse_profile_update("我在开会"))
+
+    def test_planner_profile_statement_overrides_chat_plan(self):
+        class ChatProvider:
+            async def chat(self, **kwargs):
+                return json.dumps({"action": "chat", "reply": "好的，我记住了。"})
+
+        plan = asyncio.run(
+            plan_assistant_action(
+                ChatProvider(),
+                "我在上海",
+                [],
+                datetime(2026, 6, 8, 10, 0, 0),
+            )
+        )
+
+        self.assertEqual(plan.action, "update_memory")
+        self.assertEqual(plan.memory_actions[0].tool, "set_user_profile")
+        self.assertEqual(plan.memory_actions[0].arguments["field"], "city")
+        self.assertEqual(plan.memory_actions[0].arguments["value"], "上海")
+        self.assertFalse(plan.confirmation_required)
 
     def test_assistant_chat_falls_back_to_plain_chat_when_planner_returns_invalid_json(self):
         class InvalidPlannerProvider:
@@ -774,7 +826,9 @@ class AssistantChatIntentTests(unittest.TestCase):
     def test_schedule_creation_request_detection_is_narrower_than_schedule_reference(self):
         self.assertTrue(is_schedule_creation_request("添加日程，明天晚上6点30项目管理答辩，大概1小时，提前30min提醒我"))
         self.assertTrue(is_schedule_creation_request("明天下午3点开会，大概持续1小时，提前30min提醒我"))
+        self.assertTrue(is_schedule_creation_request("今天上午10点我要参加视频会议"))
         self.assertFalse(is_schedule_creation_request("查看未来2天日程"))
+        self.assertFalse(is_schedule_creation_request("今天上午10点的视频会议在哪里"))
         self.assertFalse(is_schedule_creation_request("今晚9点的开会提前20min提醒我"))
 
     def test_local_operation_detection(self):
