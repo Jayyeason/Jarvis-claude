@@ -531,4 +531,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Python/agent/assistant_chat.py, Python/agent/preferences.py, Python/contracts.py, Python/agent/prompts.py, Python/tests/test_agent_components.py, Jarvis/UI/BatchReviewPanel.swift
 - Decision: Reminder due_time remains the user requested/default due time; early alert is stored in alert_minutes_before_due, including memory defaults
 - Next: Restart Jarvis/Python gateway after pulling to use the corrected route and rebuilt app
+### 2026-06-08 02:41:05 +0800 | milestone
+- Summary: Fixed macOS notification registration by signing Debug app bundle and requesting notification authorization after app activation
+- Files: Makefile, Jarvis/App/JarvisApp.swift, Jarvis/NativeActions/NotificationTool.swift
+- Decision: Debug builds must keep a stable signed bundle identifier com.jarvis.app; Jarvis proactively prepares notification authorization on launch instead of waiting for a cron event
+- Next: Use make run or restart Jarvis after pulling; re-enable Notifications and Accessibility permissions for the newly signed Jarvis if macOS prompts
 

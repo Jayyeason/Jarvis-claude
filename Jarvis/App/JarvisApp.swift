@@ -90,6 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             NSApp.activate(ignoringOtherApps: true)
             jlog("[App] Activated Jarvis main window")
+            _ = await NotificationTool.shared.prepareAuthorization()
         }
     }
 }

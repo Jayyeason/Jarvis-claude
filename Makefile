@@ -15,7 +15,9 @@ build:
 	  -scheme $(SCHEME) \
 	  -configuration Debug \
 	  -derivedDataPath build/DerivedData \
-	  CODE_SIGNING_ALLOWED=NO \
+	  CODE_SIGNING_ALLOWED=YES \
+	  CODE_SIGNING_REQUIRED=NO \
+	  CODE_SIGN_IDENTITY=- \
 	  > build/xcodebuild.log 2>&1
 	@grep -E "^(\*\* BUILD|Build|error:|warning:|Compiling|Linking)" build/xcodebuild.log || true
 
