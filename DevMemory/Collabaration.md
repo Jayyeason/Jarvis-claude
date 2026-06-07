@@ -501,4 +501,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Jarvis/NativeActions/EventKitTool.swift,Jarvis/App/HeartbeatManager.swift,Python/agent/memory.py,Python/agent/assistant_chat.py,Python/tests/test_agent_components.py
 - Decision: Reminder alarms should be stored as absolute dates because list/query code compares alarm.absoluteDate against dueDate; old relative alarms are treated as fallback for display.
 - Next: Restart Jarvis/Python gateway; existing reminders without any persisted alarm may need their alert set once.
+### 2026-06-08 01:34:37 +0800 | milestone
+- Summary: Fixed cron reminder reliability by checking missed schedules between heartbeat ticks and sending cron events through system notifications.
+- Files: Python/agent/heartbeat.py,Jarvis/App/HeartbeatManager.swift,Python/tests/test_agent_components.py
+- Decision: Cron reminders catch up only within an active heartbeat interval, capped at 10 minutes; first startup still uses a short 65-second window to avoid stale popups.
+- Next: Restart Jarvis/Python gateway and verify a near-future /cron popup manually.
 

@@ -550,6 +550,33 @@ class CronMemoryTests(unittest.TestCase):
         self.assertEqual(events[0].title, "做复盘")
         self.assertEqual(repeated, [])
 
+    def test_heartbeat_catches_cron_between_delayed_ticks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            with patch.dict(sys.modules, {"croniter": SimpleNamespace(croniter=_FakeCroniter)}):
+                task = append_cron_task(manager, "0 10 * * *", "做复盘", "提醒你做复盘")
+                engine = HeartbeatEngine(manager)
+
+                engine._cron_rules(datetime(2026, 6, 7, 9, 58, 0))
+                events = engine._cron_rules(datetime(2026, 6, 7, 10, 3, 0))
+                repeated = engine._cron_rules(datetime(2026, 6, 7, 10, 4, 0))
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].trigger_type, "cron_reminder")
+        self.assertIn(task.id, events[0].id)
+        self.assertEqual(repeated, [])
+
+    def test_heartbeat_first_cron_check_does_not_emit_stale_schedule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            with patch.dict(sys.modules, {"croniter": SimpleNamespace(croniter=_FakeCroniter)}):
+                append_cron_task(manager, "0 10 * * *", "做复盘", "提醒你做复盘")
+                engine = HeartbeatEngine(manager)
+
+                events = engine._cron_rules(datetime(2026, 6, 7, 10, 3, 0))
+
+        self.assertEqual(events, [])
+
 
 class CronReplyFormattingTests(unittest.TestCase):
     def test_cron_list_reply_uses_markdown_and_human_time(self):

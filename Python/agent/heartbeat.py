@@ -16,11 +16,15 @@ from .memory import MemoryManager
 
 logger = logging.getLogger("agent.heartbeat")
 
+CRON_FIRST_CHECK_LOOKBACK_SECONDS = 65
+CRON_MAX_CATCH_UP_SECONDS = 10 * 60
+
 
 class HeartbeatEngine:
     def __init__(self, memory: Optional[MemoryManager] = None):
         self.memory = memory or MemoryManager()
         self.wal_path = self.memory.directory / "wal.jsonl"
+        self._last_cron_check_at: datetime | None = None
 
     async def tick(self, req: HeartbeatTickRequest) -> HeartbeatTickResponse:
         now = _parse_datetime(req.now) or datetime.now()
@@ -101,10 +105,17 @@ class HeartbeatEngine:
 
     def _cron_rules(self, now: datetime) -> list[ProactiveEvent]:
         out = []
+        previous_check = self._last_cron_check_at
+        self._last_cron_check_at = now
+        if previous_check is None or previous_check > now:
+            previous_check = now - timedelta(seconds=CRON_FIRST_CHECK_LOOKBACK_SECONDS)
+        lower_bound = max(previous_check, now - timedelta(seconds=CRON_MAX_CATCH_UP_SECONDS))
+        upper_bound = now + timedelta(seconds=1)
+
         for task in read_cron_tasks(self.memory):
             try:
-                previous = previous_cron_time(task.cron_expr, now + timedelta(seconds=1))
-                if 0 <= (now - previous).total_seconds() <= 65:
+                previous = previous_cron_time(task.cron_expr, upper_bound)
+                if lower_bound < previous <= upper_bound:
                     action_id = f"cron:{task.id}:{previous.isoformat(timespec='minutes')}"
                     if not self._seen(action_id):
                         out.append(self._event(action_id, "cron_reminder", task.title or "周期提醒", task.body or task.title))

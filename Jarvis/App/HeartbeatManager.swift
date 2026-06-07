@@ -33,9 +33,7 @@ class HeartbeatManager {
             let response = try await GatewayClient.shared.heartbeatTick(req)
             for event in response.events ?? [] {
                 IslandWindowController.shared.showProactive(event)
-                if event.triggerType != "cron_reminder" {
-                    await NotificationTool.shared.send(event)
-                }
+                await NotificationTool.shared.send(event)
             }
         } catch {
             jlog("[Heartbeat] tick failed: \(error.localizedDescription)")
