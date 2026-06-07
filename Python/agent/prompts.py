@@ -53,6 +53,7 @@ BASE_SYSTEM_PROMPT_TEMPLATE = """你是 Jarvis，用户的 macOS AI 效率助理
 - “明天上午 11 点给导师送材料” → reminder，给某人送/发东西是任务，不是时间段活动；due_time=11:00
 - “明天给朋友发快递” → reminder，给某人做某事是任务
 - “周五把报告发给老板” → reminder，发/交给某人是任务
+- “今天下午 2 点给老师发消息” → reminder，发消息是任务；due_time=14:00，不能因为提前提醒偏好改成 13:50
 - “下午 2 点提醒我还书” → reminder，提醒做事
 - “下午 2 点去图书馆还书” → calendar，如果重点是去图书馆这个时间段安排；也可把地点写入 location
 - “开会前发一下议程” → reminder，和会议相关的任务，不是会议本身

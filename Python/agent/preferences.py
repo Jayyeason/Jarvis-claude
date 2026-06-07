@@ -136,6 +136,14 @@ class PreferenceEngine:
 
         if not self._has_explicit_alert_text(context):
             minutes = self._nonnegative_int(effective.get("reminder_default_alert_minutes"))
+            if minutes is not None:
+                self._correct_shifted_default_reminder_time(
+                    candidate,
+                    payload,
+                    context,
+                    minutes,
+                    self._source("reminder_default_alert_minutes", explicit_keys),
+                )
             current = payload.get("alert_minutes_before_due")
             if minutes is not None and current is None:
                 payload["alert_minutes_before_due"] = minutes
@@ -182,6 +190,34 @@ class PreferenceEngine:
                 "explicit",
                 f"已按原文保持到期时间为 {target_time}，提前提醒单独写入提醒属性。",
             )
+
+    def _correct_shifted_default_reminder_time(
+        self,
+        candidate: dict[str, Any],
+        payload: dict[str, Any],
+        context: str,
+        minutes: int,
+        source: str,
+    ) -> None:
+        target_time = self._extract_target_time(context)
+        if not target_time:
+            return
+
+        current_due_time = self._payload_due_time(payload)
+        shifted = self._shift_time(target_time, -minutes)
+        if current_due_time != shifted:
+            return
+
+        self._set_payload_due_time(payload, target_time)
+        self._remove_missing(candidate, "time")
+        self._record(
+            candidate,
+            "reminder.due_time",
+            target_time,
+            "到期时间",
+            source,
+            f"已保持到期时间为 {target_time}，提前 {minutes} 分钟提醒会写入提醒属性。",
+        )
 
     def _record(
         self,

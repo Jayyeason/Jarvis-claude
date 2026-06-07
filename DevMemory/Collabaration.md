@@ -526,4 +526,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Jarvis/NativeActions/NotificationTool.swift,Jarvis/App/HeartbeatManager.swift
 - Decision: Cron remains system-notification-only; notification failures now log explicit authorization state, and foreground notifications present as banner/list/sound.
 - Next: Restart Jarvis and enable Jarvis notifications in macOS Settings if logs report authorization denied.
+### 2026-06-08 02:34:10 +0800 | milestone
+- Summary: Fixed assistant reminder creation routing and default alert due-time preservation
+- Files: Python/agent/assistant_chat.py, Python/agent/preferences.py, Python/contracts.py, Python/agent/prompts.py, Python/tests/test_agent_components.py, Jarvis/UI/BatchReviewPanel.swift
+- Decision: Reminder due_time remains the user requested/default due time; early alert is stored in alert_minutes_before_due, including memory defaults
+- Next: Restart Jarvis/Python gateway after pulling to use the corrected route and rebuilt app
 

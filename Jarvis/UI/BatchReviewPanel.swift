@@ -1375,8 +1375,13 @@ private struct CandidateDraft: Identifiable {
         if let endDate { values["end_time"] = iso(endDate) }
         if let dueDate { values["due_date"] = iso(dueDate) }
         if let dueTime { values["due_time"] = dueTime }
+        values["alert_minutes_before_start"] = "\(alertMinutesBeforeStart)"
+        if let alertMinutesBeforeDue {
+            values["alert_minutes_before_due"] = "\(alertMinutesBeforeDue)"
+        }
         values["list_name"] = listName
         values["priority"] = priority
+        values["flagged"] = flagged ? "true" : "false"
         return values
     }
 
@@ -1565,6 +1570,8 @@ private struct CandidateDraft: Identifiable {
             iso(endDate),
             iso(dueDate),
             dueTime ?? "",
+            "\(alertMinutesBeforeStart)",
+            alertMinutesBeforeDue.map(String.init) ?? "",
             hasDueDate ? "1" : "0",
             calendarName ?? "",
             listName,

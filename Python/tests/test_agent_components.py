@@ -52,7 +52,7 @@ from agent.validator import AgentValidationError, validate_agent_result
 from providers.openai_compat import OpenAICompatProvider
 from providers.local_model_registry import LocalModelRegistry, safe_model_id
 from providers.provider_factory import create_provider
-from contracts import AssistantActionPlan, AssistantChatRequest
+from contracts import AgentResponse, AssistantActionPlan, AssistantChatRequest
 from gateway import (
     _active_api_key,
     _assistant_extraction_session_id,
@@ -243,6 +243,41 @@ class MemoryManagerTests(unittest.TestCase):
         self.assertEqual(reminder["due_date"], "2026-06-08")
         self.assertEqual(reminder["due_time"], "17:00")
         self.assertEqual(reminder["alert_minutes_before_due"], 10)
+
+    def test_preference_engine_corrects_shifted_reminder_due_time_from_default_alert(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "memory.json"
+            path.write_text(
+                json.dumps({"preferences": {"reminder_default_alert_minutes": 10}}),
+                encoding="utf-8",
+            )
+            result = validate_agent_result(
+                {
+                    "type": "batch",
+                    "candidates": [
+                        {
+                            "id": "candidate_1",
+                            "kind": "reminder",
+                            "reminder": {
+                                "title": "喝水",
+                                "due_date": "2026-06-08",
+                                "due_time": "14:50",
+                            },
+                        }
+                    ],
+                }
+            )
+
+            applied = PreferenceEngine(MemoryManager(path)).apply(result, "今天下午3点提醒我喝水")
+            applied = validate_agent_result(applied)
+
+        reminder = applied["candidates"][0]["reminder"]
+        self.assertEqual(reminder["due_time"], "15:00")
+        self.assertEqual(reminder["alert_minutes_before_due"], 10)
+        self.assertIn(
+            "reminder.due_time",
+            {item["field"] for item in applied["candidates"][0]["applied_preferences"]},
+        )
 
     def test_preference_engine_applies_calendar_duration_and_alert(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1110,6 +1145,78 @@ class AssistantChatIntentTests(unittest.TestCase):
         self.assertFalse(is_local_operation_request(text))
         self.assertFalse(is_slash_list_request(text))
 
+    def test_new_reminder_phrases_use_extraction_route_not_local_operation_route(self):
+        cases = [
+            "今天下午2点要给老师发送一个消息",
+            "今天下午2点提醒我给老师发送一个消息",
+            "今天下午2点要给老师发消息",
+            "今天下午2点给老师发消息",
+            "今天下午3点提醒我喝水",
+        ]
+
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertTrue(is_schedule_request(text))
+                self.assertTrue(is_schedule_creation_request(text))
+                self.assertFalse(is_local_operation_request(text))
+                self.assertIsNone(heuristic_action_plan(text, datetime(2026, 6, 8, 10, 0, 0)))
+
+    def test_assistant_chat_routes_reminder_creation_and_preserves_due_time(self):
+        class ShiftedReminderProvider:
+            async def chat_with_tools(self, **kwargs):
+                return {
+                    "type": "batch",
+                    "candidates": [
+                        {
+                            "id": "candidate_1",
+                            "kind": "reminder",
+                            "reminder": {
+                                "title": "给老师发送消息",
+                                "due_date": "2026-06-08",
+                                "due_time": "13:50",
+                            },
+                        }
+                    ],
+                }
+
+            async def chat(self, **kwargs):
+                raise AssertionError("schedule creation should not fall back to plain chat")
+
+        previous_agent = getattr(app.state, "agent", None)
+        previous_provider = getattr(app.state, "active_provider", None)
+        previous_provider_id = getattr(app.state, "active_provider_id", None)
+        previous_model_id = getattr(app.state, "active_model_id", None)
+        previous_sessions = getattr(app.state, "assistant_sessions", None)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                manager = MemoryManager(Path(tmp) / "memory.json")
+                manager.update_preferences({"reminder_default_alert_minutes": 10}, source="manual")
+                app.state.agent = JarvisAgent(manager)
+                app.state.active_provider = ShiftedReminderProvider()
+                app.state.active_provider_id = "test"
+                app.state.active_model_id = "test"
+                app.state.assistant_sessions = {}
+
+                response = asyncio.run(
+                    assistant_chat(
+                        AssistantChatRequest(
+                            message="今天下午2点提醒我给老师发送一个消息",
+                            session_id="assistant-reminder-create-test",
+                        )
+                    )
+                )
+        finally:
+            app.state.agent = previous_agent
+            app.state.active_provider = previous_provider
+            app.state.active_provider_id = previous_provider_id
+            app.state.active_model_id = previous_model_id
+            app.state.assistant_sessions = previous_sessions
+
+        self.assertEqual(response.action, "review_candidates")
+        reminder = response.agent_response.candidates[0].reminder
+        self.assertEqual(reminder.due_time, "14:00")
+        self.assertEqual(reminder.alert_minutes_before_due, 10)
+
     def test_add_schedule_with_alert_uses_extraction_route(self):
         text = "添加日程，明天晚上6点30项目管理答辩，大概1小时，提前30min提醒我"
 
@@ -1260,6 +1367,36 @@ class ToolSchemaTests(unittest.TestCase):
         self.assertEqual(calendar_props["alert_minutes_before_start"]["minimum"], 0)
         self.assertEqual(calendar_props["recurrence"]["properties"]["interval"]["minimum"], 1)
         self.assertIn("clarification_question", candidate["properties"])
+
+    def test_agent_response_accepts_default_applied_preference_source(self):
+        response = AgentResponse(
+            **{
+                "type": "batch",
+                "candidates": [
+                    {
+                        "id": "candidate_1",
+                        "kind": "reminder",
+                        "reminder": {
+                            "title": "喝水",
+                            "due_date": "2026-06-08",
+                            "due_time": "15:00",
+                            "alert_minutes_before_due": 10,
+                        },
+                        "applied_preferences": [
+                            {
+                                "field": "reminder.alert_minutes_before_due",
+                                "value": "10",
+                                "label": "提前提醒",
+                                "source": "default",
+                                "message": "已设置为提前 10 分钟提醒。",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(response.candidates[0].applied_preferences[0].source, "default")
 
 
 class LocalModelRegistryTests(unittest.TestCase):

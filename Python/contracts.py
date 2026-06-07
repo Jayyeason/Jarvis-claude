@@ -198,7 +198,7 @@ class AppliedPreference(BaseModel):
     field: str
     value: str
     label: str
-    source: Literal["manual", "learned", "legacy"]
+    source: Literal["manual", "learned", "legacy", "default"]
     message: str
 
 

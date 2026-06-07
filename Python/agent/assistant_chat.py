@@ -28,10 +28,36 @@ SCHEDULE_ACTION_HINTS = [
     "缴费",
     "买",
     "电话",
+    "打电话",
+    "发消息",
+    "发送消息",
+    "发送",
+    "发微信",
+    "发邮件",
+    "回复",
+    "联系",
 ]
 
 CALENDAR_EVENT_HINTS = ["开会", "会议", "吃饭", "面试", "课程", "活动", "出差", "看展", "视频会议"]
-REMINDER_TASK_HINTS = ["记得", "提交", "交作业", "缴费", "报名", "买", "ddl", "截止"]
+REMINDER_TASK_HINTS = [
+    "记得",
+    "提交",
+    "交作业",
+    "缴费",
+    "报名",
+    "买",
+    "ddl",
+    "截止",
+    "电话",
+    "打电话",
+    "发消息",
+    "发送消息",
+    "发送",
+    "发微信",
+    "发邮件",
+    "回复",
+    "联系",
+]
 
 TIME_HINTS = [
     "今天",
@@ -294,6 +320,8 @@ def _looks_like_new_schedule_creation(text: str) -> bool:
     reminder_task = _contains_any(text, REMINDER_TASK_HINTS)
     has_concrete_time = _extract_time_of_day(text) is not None
 
+    if has_concrete_time and "提醒我" in text:
+        return True
     if has_concrete_time and (calendar_event or reminder_task):
         return True
 
@@ -573,6 +601,7 @@ def assistant_action_planner_prompt(now: datetime, memory_context: str = "") -> 
         "- “最近2天的日程和待办”/“2天内的日程”/“最近两天待办” => action=list_items，item_kind=both；默认从今天开始向后查询，除非用户明确说过去。\n"
         "- 如果上一轮你追问了过去还是未来，用户回答“未来2天”或“过去2天”，要结合上一轮目标继续返回 list_items，不要返回 chat。\n"
         "- “明天下午3点开会，持续1小时，提前30min提醒我” => action=create_candidates；这是新建日程并设置提醒，不是 update_alert。\n"
+        "- “今天下午2点提醒我喝水”/“今天下午2点给老师发消息” => action=create_candidates；这是新建待办，不是 list_items。\n"
         "- “删除明天的开会日程” => action=delete_items，item_kind=calendar，关键词可为 [\"开会\"]。\n"
         "- “把明天下午开会日程推迟1小时开始” => action=reschedule_item，patch.shift_minutes=60。\n"
         "- “今天晚上22点的会议提前1小时” => action=reschedule_item，关键词 [\"会议\"]，time_of_day=22:00，patch.shift_minutes=-60；这是修改开始时间，不是提醒。\n"
@@ -583,7 +612,7 @@ def assistant_action_planner_prompt(now: datetime, memory_context: str = "") -> 
         "- “提前半小时” => shift_minutes=-30；“推迟/延后1小时” => shift_minutes=60。\n"
         "- 如果删除或改期缺少可匹配日期或目标关键词，使用 clarify，不要猜。\n"
         "- 日程 calendar 是占用一段时间的会议、吃饭、面试、课程、活动、出差、看展。\n"
-        "- 待办 reminder 是交作业、缴费、提交材料、报名截止、DDL、买东西、记得做某事。\n"
+        "- 待办 reminder 是交作业、缴费、提交材料、报名截止、DDL、买东西、发消息、回复邮件、联系某人、记得做某事。\n"
         "- 只有用户明确要求长期记住时才用 update_memory；普通闲聊、情绪、临时状态不要写 Memory。\n"
         "- “以后称呼我为 khalil” => action=update_memory，tool=set_user_profile，field=preferred_name，value=khalil。\n"
         "- “记住我住在上海”/“我的城市是上海”/“我在上海” => tool=set_user_profile，field=city，value=上海。\n"
