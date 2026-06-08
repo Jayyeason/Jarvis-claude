@@ -8,7 +8,7 @@ struct AssistantChatPanel: View {
     @State private var messages: [AssistantChatMessage] = [
         AssistantChatMessage(
             role: .assistant,
-            text: "我是 Jarvis，可以和我聊天，写入日程/待办，写入你的日程/待办偏好。"
+            text: "我是 Jarvis，可以和我聊天，写入日程/待办/备忘录，写入你的日程/待办偏好。"
         )
     ]
     @State private var draft = ""
@@ -250,6 +250,12 @@ struct AssistantChatPanel: View {
             } else {
                 messages.append(AssistantChatMessage(role: .assistant, text: response.reply))
             }
+        case "execute_note":
+            if let plan = response.actionPlan {
+                await executeNote(plan, fallbackReply: response.reply)
+            } else {
+                messages.append(AssistantChatMessage(role: .assistant, text: response.reply))
+            }
         default:
             messages.append(AssistantChatMessage(role: .assistant, text: response.reply))
         }
@@ -324,11 +330,11 @@ struct AssistantChatPanel: View {
                     return true
                 }
                 try Task.checkCancellation()
-                try await EventKitTool.shared.createEvent(result: result)
+                let createdEvent = try await EventKitTool.shared.createEvent(result: result)
                 try Task.checkCancellation()
                 await sendAutoWriteFeedback(candidate, agentSessionID: agentResponse.sessionId)
                 TaskListStore.shared.reload()
-                messages.append(AssistantChatMessage(role: .assistant, text: autoWriteSummary(candidate: candidate, result: .calendar(result))))
+                messages.append(AssistantChatMessage(role: .assistant, text: autoWriteSummary(candidate: candidate, result: .calendar(result), createdEvent: createdEvent)))
                 return true
             case .reminder(let result):
                 try Task.checkCancellation()
@@ -418,10 +424,14 @@ struct AssistantChatPanel: View {
         try? await GatewayClient.shared.memoryFeedback(req)
     }
 
-    private func autoWriteSummary(candidate: RecognitionCandidate, result: RecognitionResult) -> String {
+    private func autoWriteSummary(candidate: RecognitionCandidate, result: RecognitionResult, createdEvent: CalendarEventSnapshot? = nil) -> String {
         switch result {
         case .calendar(let event):
-            return "已写入日程：\(event.title)，\(formatDateTime(event.startTime))。"
+            var parts = ["已写入日程：\(event.title)", formatDateTime(event.startTime)]
+            if let calendarName = createdEvent?.calendarName, !calendarName.isEmpty {
+                parts.append("日历：\(calendarName)")
+            }
+            return parts.joined(separator: "，") + "。"
         case .reminder(let reminder):
             var parts = ["已写入提醒事项：\(reminder.title)"]
             if let due = reminder.dueDate {
@@ -536,6 +546,25 @@ struct AssistantChatPanel: View {
                 role: .assistant,
                 text: "已将\(item.kind == "calendar" ? "日程" : "待办")「\(item.title)」改为提前 \(minutes) 分钟提醒。"
             ))
+        } catch {
+            if isCancellationError(error) {
+                return
+            }
+            messages.append(AssistantChatMessage(role: .assistant, text: error.localizedDescription))
+        }
+    }
+
+    @MainActor
+    private func executeNote(_ plan: AssistantActionPlan, fallbackReply: String) async {
+        do {
+            guard let note = plan.note else {
+                messages.append(AssistantChatMessage(role: .assistant, text: fallbackReply))
+                return
+            }
+            try Task.checkCancellation()
+            let title = try await NotesTool.shared.createNote(title: note.title, content: note.content)
+            try Task.checkCancellation()
+            messages.append(AssistantChatMessage(role: .assistant, text: "已写入备忘录：\(title)。"))
         } catch {
             if isCancellationError(error) {
                 return

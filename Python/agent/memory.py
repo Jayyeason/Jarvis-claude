@@ -76,7 +76,9 @@ class MemoryManager:
             "soul.md": (
                 "# soul.md\n\n"
                 "## Jarvis 核心边界\n"
-                "- 所有写入 Calendar / Reminders 的操作必须由用户确认。\n"
+                "- 对话中信息完整的单项 Calendar / Reminders / Notes 写入由系统自动执行，不额外确认。\n"
+                "- 信息不足时只追问缺失字段；用户补齐后自动写入。\n"
+                "- 删除、批量修改、冲突写入和修改 Jarvis 核心边界仍需要用户确认。\n"
                 "- 主动触发时只提醒和建议，不自动写入。\n"
                 "- 信息不足时标记缺失字段，让用户补充，不编造。\n\n"
                 "## 语气风格\n"

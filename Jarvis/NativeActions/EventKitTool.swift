@@ -14,8 +14,14 @@ class EventKitTool {
     }
 
     private func requestEventAccess() async throws {
+        let before = Self.authorizationDescription(for: .event)
         if #available(macOS 14.0, *) {
-            try await store.requestFullAccessToEvents()
+            let granted = try await store.requestFullAccessToEvents()
+            let after = Self.authorizationDescription(for: .event)
+            jlog("[EventKit] request event access before=\(before) after=\(after) granted=\(granted)")
+            guard granted, Self.hasFullAccess(to: .event) else {
+                throw EventKitError.accessDeniedStatus("日历当前状态：\(after)")
+            }
         } else {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 store.requestAccess(to: .event) { granted, error in
@@ -28,8 +34,14 @@ class EventKitTool {
     }
 
     private func requestReminderAccess() async throws {
+        let before = Self.authorizationDescription(for: .reminder)
         if #available(macOS 14.0, *) {
-            try await store.requestFullAccessToReminders()
+            let granted = try await store.requestFullAccessToReminders()
+            let after = Self.authorizationDescription(for: .reminder)
+            jlog("[EventKit] request reminder access before=\(before) after=\(after) granted=\(granted)")
+            guard granted, Self.hasFullAccess(to: .reminder) else {
+                throw EventKitError.accessDeniedStatus("提醒事项当前状态：\(after)")
+            }
         } else {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 store.requestAccess(to: .reminder) { granted, error in
@@ -41,10 +53,12 @@ class EventKitTool {
         }
     }
 
-    func createEvent(result: CalendarRecognition, selectedLocation: LocationResult? = nil) async throws {
+    @discardableResult
+    func createEvent(result: CalendarRecognition, selectedLocation: LocationResult? = nil) async throws -> CalendarEventSnapshot {
         try await requestEventAccess()
 
-        guard let cal = eventCalendar() else {
+        guard let cal = eventCalendar(named: result.calendarName) else {
+            jlog("[EventKit] no writable event calendar. calendars=\(eventCalendarInventory())")
             throw EventKitError.noCalendar
         }
 
@@ -85,7 +99,27 @@ class EventKitTool {
             event.addRecurrenceRule(rule)
         }
 
-        try store.save(event, span: .thisEvent)
+        jlog("[EventKit] saving event title=\(result.title) start=\(isoString(startDate)) end=\(isoString(endDate)) calendar={\(calendarDescription(cal))}")
+        try store.save(event, span: .thisEvent, commit: true)
+
+        let verified = await verifySavedEvent(event, title: result.title, start: startDate, end: endDate, calendar: cal)
+        guard let verified else {
+            let eventID = event.eventIdentifier ?? "nil"
+            jlog("[EventKit] event save verification failed title=\(result.title) id=\(eventID) calendar={\(calendarDescription(cal))}")
+            throw EventKitError.eventSaveVerificationFailed
+        }
+
+        jlog("[EventKit] event saved verified id=\(verified.eventIdentifier ?? "nil") calendar={\(calendarDescription(verified.calendar))}")
+        return CalendarEventSnapshot(
+            id: verified.eventIdentifier ?? event.eventIdentifier ?? UUID().uuidString,
+            title: verified.title ?? result.title,
+            startTime: isoString(verified.startDate),
+            endTime: isoString(verified.endDate),
+            isAllDay: verified.isAllDay,
+            location: verified.location,
+            calendarName: verified.calendar?.title ?? cal.title,
+            alertMinutesBeforeStart: eventAlertMinutesBeforeStart(verified)
+        )
     }
 
     func checkConflicts(start: Date, end: Date) async throws -> [ConflictInfo] {
@@ -350,9 +384,27 @@ class EventKitTool {
         try store.commit()
     }
 
-    private func eventCalendar() -> EKCalendar? {
-        store.defaultCalendarForNewEvents
-            ?? store.calendars(for: .event).first(where: { $0.allowsContentModifications })
+    private func eventCalendar(named requestedName: String?) -> EKCalendar? {
+        let calendars = store.calendars(for: .event)
+        let writable = calendars.filter(isWritableUserEventCalendar)
+        let requested = requestedName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let requested, !requested.isEmpty {
+            if let exact = writable.first(where: { $0.title == requested }) {
+                return exact
+            }
+            if let loose = writable.first(where: { $0.title.localizedCaseInsensitiveContains(requested) }) {
+                return loose
+            }
+        }
+
+        if let defaultCalendar = store.defaultCalendarForNewEvents,
+           isWritableUserEventCalendar(defaultCalendar) {
+            return defaultCalendar
+        }
+
+        return writable.first(where: { $0.type == .local })
+            ?? writable.first
+            ?? calendars.first(where: { $0.allowsContentModifications })
     }
 
     private func reminderCalendar(named name: String) -> EKCalendar? {
@@ -362,6 +414,66 @@ class EventKitTool {
         return named
             ?? store.defaultCalendarForNewReminders()
             ?? store.calendars(for: .reminder).first(where: { $0.allowsContentModifications })
+    }
+
+    private func isWritableUserEventCalendar(_ calendar: EKCalendar) -> Bool {
+        calendar.allowsContentModifications
+            && calendar.type != .birthday
+            && calendar.type != .subscription
+    }
+
+    private func verifySavedEvent(_ event: EKEvent, title: String, start: Date, end: Date, calendar: EKCalendar) async -> EKEvent? {
+        if let identifier = event.eventIdentifier,
+           let byID = store.event(withIdentifier: identifier) {
+            return byID
+        }
+
+        if let bySearch = matchingSavedEvent(title: title, start: start, end: end, calendars: [calendar]) {
+            return bySearch
+        }
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        if let identifier = event.eventIdentifier,
+           let byID = store.event(withIdentifier: identifier) {
+            return byID
+        }
+        return matchingSavedEvent(title: title, start: start, end: end, calendars: [calendar])
+            ?? matchingSavedEvent(title: title, start: start, end: end, calendars: nil)
+    }
+
+    private func matchingSavedEvent(title: String, start: Date, end: Date, calendars: [EKCalendar]?) -> EKEvent? {
+        let queryStart = start.addingTimeInterval(-60)
+        let queryEnd = max(end, start.addingTimeInterval(60)).addingTimeInterval(60)
+        let predicate = store.predicateForEvents(withStart: queryStart, end: queryEnd, calendars: calendars)
+        return store.events(matching: predicate).first { event in
+            guard (event.title ?? "") == title else { return false }
+            let startDelta = abs(event.startDate.timeIntervalSince(start))
+            let endDelta = abs(event.endDate.timeIntervalSince(end))
+            return startDelta < 60 && endDelta < 60
+        }
+    }
+
+    private func eventCalendarInventory() -> String {
+        store.calendars(for: .event)
+            .map { calendarDescription($0) }
+            .joined(separator: "; ")
+    }
+
+    private func calendarDescription(_ calendar: EKCalendar?) -> String {
+        guard let calendar else { return "nil" }
+        let sourceTitle = calendar.source?.title ?? "unknown"
+        return "title=\(calendar.title), id=\(calendar.calendarIdentifier), type=\(calendarTypeDescription(calendar.type)), source=\(sourceTitle), allows=\(calendar.allowsContentModifications)"
+    }
+
+    private func calendarTypeDescription(_ type: EKCalendarType) -> String {
+        switch type {
+        case .local: return "local"
+        case .calDAV: return "calDAV"
+        case .exchange: return "exchange"
+        case .subscription: return "subscription"
+        case .birthday: return "birthday"
+        @unknown default: return "unknown(\(type.rawValue))"
+        }
     }
 
     private func replaceAlarms(on item: EKCalendarItem, with alarm: EKAlarm) {
@@ -557,24 +669,53 @@ class EventKitTool {
         baseComponents.minute = timeComponents.minute
         return calendar.date(from: baseComponents)
     }
+
+    static func hasFullAccess(to entityType: EKEntityType) -> Bool {
+        let status = EKEventStore.authorizationStatus(for: entityType)
+        return status == .authorized || status == .fullAccess
+    }
+
+    static func authorizationDescription(for entityType: EKEntityType) -> String {
+        let status = EKEventStore.authorizationStatus(for: entityType)
+        switch status {
+        case .notDetermined:
+            return "notDetermined(\(status.rawValue))"
+        case .restricted:
+            return "restricted(\(status.rawValue))"
+        case .denied:
+            return "denied(\(status.rawValue))"
+        case .authorized:
+            return "authorized(\(status.rawValue))"
+        case .fullAccess:
+            return "fullAccess(\(status.rawValue))"
+        case .writeOnly:
+            return "writeOnly(\(status.rawValue))"
+        @unknown default:
+            return "unknown(\(status.rawValue))"
+        }
+    }
 }
 
 enum EventKitError: Error, LocalizedError {
     case accessDenied
+    case accessDeniedStatus(String)
     case noCalendar
     case noReminderCalendar
     case missingStartTime
     case eventNotFound
+    case eventSaveVerificationFailed
     case reminderNotFound
     case missingReminderDueDate
 
     var errorDescription: String? {
         switch self {
         case .accessDenied: return "日历/提醒事项访问被拒绝，请在系统设置中授权"
+        case .accessDeniedStatus(let status): return "Jarvis 当前没有完整日历/提醒事项访问权限（\(status)）。请在系统设置 > 隐私与安全性 > 日历/提醒事项中授权 Jarvis，然后重启 Jarvis。"
         case .noCalendar: return "找不到可用的日历，请在日历 app 中创建一个"
         case .noReminderCalendar: return "找不到默认提醒事项列表"
         case .missingStartTime: return "日程缺少开始时间，请补充后再写入"
         case .eventNotFound: return "找不到匹配的日程"
+        case .eventSaveVerificationFailed: return "日程保存后没有在系统日历中查到，Jarvis 已停止显示成功结果。请检查系统设置中的日历完整访问权限后重试。"
         case .reminderNotFound: return "找不到匹配的待办"
         case .missingReminderDueDate: return "待办没有到期时间，无法设置提前提醒"
         }

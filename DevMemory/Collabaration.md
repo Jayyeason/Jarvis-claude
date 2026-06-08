@@ -536,4 +536,64 @@ If any file is missing, create it from the templates below before implementation
 - Files: Makefile, Jarvis/App/JarvisApp.swift, Jarvis/NativeActions/NotificationTool.swift
 - Decision: Debug builds must keep a stable signed bundle identifier com.jarvis.app; Jarvis proactively prepares notification authorization on launch instead of waiting for a cron event
 - Next: Use make run or restart Jarvis after pulling; re-enable Notifications and Accessibility permissions for the newly signed Jarvis if macOS prompts
+### 2026-06-08 02:53:28 +0800 | milestone
+- Summary: Generated A组 Jarvis project defense PPTX with 11 editable 16:9 slides and right-side blank screenshot placeholders.
+- Files: docs/Jarvis_A组项目展示.pptx,DevMemory/Collabaration.md
+- Decision: Used temporary /tmp python-pptx venv; kept project dependencies unchanged; placeholders use light gray straight borders.
+- Next: Open in PowerPoint or Keynote to add screenshots/recordings into the reserved right-side areas.
+### 2026-06-08 09:48:22 +0800 | milestone
+- Summary: Updated Jarvis A组 PPTX: slides 2/3/9/10 no longer reserve right-side blank placeholders; business slide now covers current AI workplace/agent market and Jarvis value.
+- Files: docs/Jarvis_A组项目展示.pptx,DevMemory/Collabaration.md
+- Decision: Kept screenshot placeholders only on demo-oriented slides; added concise market-source footnote on the business analysis slide.
+- Next: Open slide 9 in PowerPoint/Keynote for final visual polish if presenter wants denser or lighter market wording.
+### 2026-06-08 09:53:18 +0800 | milestone
+- Summary: Finalized PPTX update after user feedback: removed right-side placeholders from slides 2/3/9/10 and refined slide 9 market pain bullet with Microsoft Work Trend Index context.
+- Files: docs/Jarvis_A组项目展示.pptx,DevMemory/Collabaration.md
+- Decision: Business analysis slide now pairs Gallup AI adoption, Gartner agentization, Microsoft fragmented-work context, and Jarvis commercial value.
+- Next: Presenter can add screenshots only to demo slides 4-8; slides 2/3/9/10 are now full-content pages.
+### 2026-06-08 10:30:21 +0800 | milestone
+- Summary: Implemented assistant-chat-only macOS Notes creation: note intent planning, execute_note response, Swift NotesTool AppleScript writer, UI execution, permissions, contracts, and tests.
+- Files: Python/contracts.py,Python/agent/assistant_chat.py,Python/gateway.py,Python/tests/test_agent_components.py,Jarvis/Models/GeneratedContracts.swift,Jarvis/NativeActions/NotesTool.swift,Jarvis/UI/AssistantChatPanel.swift,Jarvis/project.yml,Jarvis/Resources/Info.plist,Jarvis/Jarvis.xcodeproj/project.pbxproj
+- Decision: Notes creation is limited to assistant chat, creates a new single macOS note directly after explicit record/save intent, and does not alter screenshot extract_schedule_items tools.
+- Next: Runtime-test with a real provider and allow Notes automation permission on first write.
+### 2026-06-08 10:35:53 +0800 | milestone
+- Summary: Fixed startup permission prompts and screenshot hotkey reliability: replaced Accessibility-based NSEvent global monitor with Carbon RegisterEventHotKey for Cmd+Shift+J, removed startup notification authorization, and made heartbeat skip Calendar/Reminder snapshots unless already authorized.
+- Files: Jarvis/App/JarvisApp.swift,Jarvis/App/HeartbeatManager.swift,Jarvis/project.yml,Jarvis/Jarvis.xcodeproj/project.pbxproj,DevMemory/Collabaration.md
+- Decision: Global screenshot hotkey no longer requires Accessibility permission; startup should not proactively prompt for Notification, Calendar, or Reminder permissions.
+- Next: Runtime-test launch for no startup permission prompts, then press Cmd+Shift+J from foreground/background apps to verify capture opens.
+### 2026-06-08 10:44:53 +0800 | milestone
+- Summary: Hardened macOS Notes writing after AppleEvent timeout: NotesTool now uses osascript subprocess, activates Notes, wraps commands in explicit timeout, creates note body-only in default folder, returns a simple ok string, and maps timeout errors to actionable text.
+- Files: Jarvis/NativeActions/NotesTool.swift,DevMemory/Collabaration.md
+- Decision: Avoid NSAppleScript background-thread execution and avoid returning Notes object specifiers because both can contribute to AppleEvent timeout behavior.
+- Next: Restart Jarvis and retry assistant chat note creation; if macOS prompts Automation permission, allow Jarvis/osascript to control Notes.
+### 2026-06-08 10:56:02 +0800 | milestone
+- Summary: Fixed assistant-chat Notes intent routing for phone-number notes and two-turn 'write to Notes' commands; added deterministic fallback note plans.
+- Files: Python/agent/assistant_chat.py,Python/gateway.py,Python/tests/test_agent_components.py
+- Decision: Explicit macOS Notes requests take precedence over schedule parsing; target-only Notes commands reuse the previous user message as note content.
+- Next: If Notes still times out, inspect macOS Automation permission and Notes app state.
+### 2026-06-08 11:01:21 +0800 | milestone
+- Summary: Added direct assistant-chat Notes routing for inline commands such as '记录：18154100916 kk', including no-provider execution and no confirmation.
+- Files: Python/agent/assistant_chat.py,Python/gateway.py,Python/tests/test_agent_components.py
+- Decision: Colon-style record/save/memo commands are treated as macOS Notes writes in assistant chat and bypass the model; broader note requests still use planner when available.
+- Next: If UI shows AppleEvent timeout, debug NotesTool/macOS Automation instead of intent routing.
+### 2026-06-08 11:22:08 +0800 | milestone
+- Summary: Fixed macOS Notes Automation permission flow by preflighting AEDeterminePermissionToAutomateTarget, launching Notes if needed, opening Automation settings on denial, and executing AppleScript inside Jarvis instead of /usr/bin/osascript.
+- Files: Jarvis/NativeActions/NotesTool.swift
+- Decision: Notes writes must originate from Jarvis process so the Automation grant for Jarvis controls the actual AppleEvent sender.
+- Next: Ask user to retry note write; if denied state persists, reset AppleEvents TCC for com.jarvis.app or enable Jarvis -> Notes in Automation settings.
+### 2026-06-08 11:42:26 +0800 | milestone
+- Summary: Changed assistant-chat creation policy to auto-write complete single Calendar/Reminders/Notes items without confirmation; updated runtime soul.md, prompts, planner wording, and default calendar duration filling.
+- Files: Python/agent/memory.py,Python/agent/prompts.py,Python/agent/preferences.py,Python/agent/assistant_chat.py,Python/tests/test_agent_components.py,/Users/kk/.jarvis/soul.md
+- Decision: Only missing fields, delete/bulk modifications, conflict writes, and soul boundary changes require confirmation; complete dialogue-created items should be written by Swift automatically.
+- Next: User can test with a complete calendar event, a reminder with exact time, and a note; inspect logs if model still asks confirmation.
+### 2026-06-08 12:03:29 +0800 | milestone
+- Summary: Added deterministic relative-date correction for schedule extraction so today/tomorrow/day-after-tomorrow dates are anchored to the local current date even when the model returns stale dates.
+- Files: Python/agent/date_correction.py,Python/agent/agent.py,Python/tests/test_agent_components.py
+- Decision: Relative day words in user text override model-provided date portions while preserving extracted time, duration, title, and location.
+- Next: If more stale-date cases appear, extend correction to additional relative date expressions.
+### 2026-06-08 12:14:50 +0800 | milestone
+- Summary: Diagnosed Calendar write failures; added strict EventKit auth checks, post-save event verification, calendar logging, and stable Apple Development signing for Jarvis Debug builds.
+- Files: Jarvis/NativeActions/EventKitTool.swift,Jarvis/UI/AssistantChatPanel.swift,Jarvis/App/HeartbeatManager.swift,Jarvis/project.yml,Makefile
+- Decision: Ad-hoc cdhash-only signing caused TCC to treat rebuilt Debug apps as new identities; use Apple Development team K53J9V75NJ so Calendar/Reminders authorization persists after one reauthorization.
+- Next: User should allow Calendar/Reminders once on the next write attempt; if creation still fails, inspect .logs/app.log EventKit lines.
 

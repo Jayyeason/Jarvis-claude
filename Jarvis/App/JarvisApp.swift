@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Carbon
 
 @main
 struct JarvisApp: App {
@@ -18,7 +19,10 @@ struct JarvisApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    private var globalHotkey: Any?
+    private var hotKeyRef: EventHotKeyRef?
+    private var hotKeyHandler: EventHandlerRef?
+    private static let captureHotKeyID = UInt32(1)
+    private static let hotKeySignature = fourCharCode("JARV")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         jlog("[App] Launching Jarvis. Logs: \(jlogPathDescription())")
@@ -60,26 +64,80 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         GatewayManager.shared.stop()
         HeartbeatManager.shared.stop()
-        if let monitor = globalHotkey {
-            NSEvent.removeMonitor(monitor)
-        }
+        unregisterGlobalHotkey()
     }
 
     private func registerGlobalHotkey() {
-        let trusted = AXIsProcessTrustedWithOptions(
-            [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        unregisterGlobalHotkey()
+
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
         )
-        jlog("[Hotkey] Accessibility trusted: \(trusted)")
-        guard trusted else {
-            jlog("[Hotkey] No accessibility permission — global hotkey disabled")
+        let handlerStatus = InstallEventHandler(
+            GetApplicationEventTarget(),
+            { _, event, _ in
+                guard let event else { return OSStatus(eventNotHandledErr) }
+
+                var hotKeyID = EventHotKeyID()
+                let parameterStatus = GetEventParameter(
+                    event,
+                    EventParamName(kEventParamDirectObject),
+                    EventParamType(typeEventHotKeyID),
+                    nil,
+                    MemoryLayout<EventHotKeyID>.size,
+                    nil,
+                    &hotKeyID
+                )
+                guard parameterStatus == noErr,
+                      hotKeyID.signature == AppDelegate.hotKeySignature,
+                      hotKeyID.id == AppDelegate.captureHotKeyID else {
+                    return OSStatus(eventNotHandledErr)
+                }
+
+                jlog("[Hotkey] ⌘⇧J pressed")
+                Task { @MainActor in CaptureManager.shared.capture() }
+                return noErr
+            },
+            1,
+            &eventType,
+            nil,
+            &hotKeyHandler
+        )
+        guard handlerStatus == noErr else {
+            jlog("[Hotkey] Failed to install Carbon hotkey handler status=\(handlerStatus)")
             return
         }
-        globalHotkey = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
-            if event.modifierFlags.contains([.command, .shift]) && event.keyCode == 38 {
-                Task { @MainActor in CaptureManager.shared.capture() }
-            }
+
+        var hotKeyID = EventHotKeyID(
+            signature: Self.hotKeySignature,
+            id: Self.captureHotKeyID
+        )
+        let registerStatus = RegisterEventHotKey(
+            UInt32(kVK_ANSI_J),
+            UInt32(cmdKey | shiftKey),
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+        guard registerStatus == noErr else {
+            jlog("[Hotkey] Failed to register ⌘⇧J status=\(registerStatus)")
+            unregisterGlobalHotkey()
+            return
         }
-        jlog("[Hotkey] Global hotkey ⌘⇧J registered")
+        jlog("[Hotkey] Carbon hotkey ⌘⇧J registered without Accessibility permission")
+    }
+
+    private func unregisterGlobalHotkey() {
+        if let hotKeyRef {
+            UnregisterEventHotKey(hotKeyRef)
+            self.hotKeyRef = nil
+        }
+        if let hotKeyHandler {
+            RemoveEventHandler(hotKeyHandler)
+            self.hotKeyHandler = nil
+        }
     }
 
     private func activateMainWindowSoon() {
@@ -90,7 +148,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             NSApp.activate(ignoringOtherApps: true)
             jlog("[App] Activated Jarvis main window")
-            _ = await NotificationTool.shared.prepareAuthorization()
+        }
+    }
+
+    private static func fourCharCode(_ value: String) -> OSType {
+        value.utf8.prefix(4).reduce(0) { result, byte in
+            (result << 8) + OSType(byte)
         }
     }
 }

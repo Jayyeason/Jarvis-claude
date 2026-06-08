@@ -3,6 +3,8 @@
 SCHEME   = Jarvis
 PROJECT  = Jarvis/Jarvis.xcodeproj
 BUILD_DIR = build/Jarvis.app
+DEVELOPMENT_TEAM ?= K53J9V75NJ
+CODE_SIGN_IDENTITY ?= Apple Development
 
 # ── Swift ─────────────────────────────────────────────────────────────────────
 
@@ -15,9 +17,11 @@ build:
 	  -scheme $(SCHEME) \
 	  -configuration Debug \
 	  -derivedDataPath build/DerivedData \
+	  DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
+	  CODE_SIGN_STYLE=Automatic \
 	  CODE_SIGNING_ALLOWED=YES \
-	  CODE_SIGNING_REQUIRED=NO \
-	  CODE_SIGN_IDENTITY=- \
+	  CODE_SIGNING_REQUIRED=YES \
+	  CODE_SIGN_IDENTITY="$(CODE_SIGN_IDENTITY)" \
 	  > build/xcodebuild.log 2>&1
 	@grep -E "^(\*\* BUILD|Build|error:|warning:|Compiling|Linking)" build/xcodebuild.log || true
 

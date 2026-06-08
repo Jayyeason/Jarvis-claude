@@ -12,11 +12,13 @@ from unittest.mock import patch
 
 from agent import JarvisAgent
 from agent.assistant_chat import (
+    contextual_note_creation_text,
     cron_command_payload,
     cron_delete_id,
     contextual_schedule_creation_text,
     heuristic_contextual_action_plan,
     heuristic_action_plan,
+    heuristic_note_action_plan,
     is_cron_create_request,
     is_cron_delete_request,
     is_cron_help_request,
@@ -24,6 +26,7 @@ from agent.assistant_chat import (
     is_contextual_local_operation_request,
     is_memory_update_request,
     is_local_operation_request,
+    is_note_creation_request,
     is_schedule_creation_request,
     is_schedule_request,
     is_slash_list_request,
@@ -42,6 +45,7 @@ from agent.cron_memory import (
     read_cron_tasks,
     validate_cron_expr,
 )
+from agent.date_correction import apply_relative_date_corrections
 from agent.heartbeat import HeartbeatEngine, _parse_datetime
 from agent.memory import MEMORY_FILE_WRITE_LIMIT_BYTES, MemoryManager, UserPreferences
 from agent.preferences import PreferenceEngine
@@ -183,6 +187,35 @@ class MemoryManagerTests(unittest.TestCase):
         candidate = result["candidates"][0]
         self.assertEqual(candidate["status"], "needs_input")
         self.assertIn("time", candidate["missing_fields"])
+
+    def test_calendar_start_without_end_uses_default_duration_and_becomes_ready(self):
+        result = validate_agent_result(
+            {
+                "type": "batch",
+                "candidates": [
+                    {
+                        "id": "candidate_1",
+                        "kind": "calendar",
+                        "calendar": {
+                            "title": "组会",
+                            "start_time": "2026-06-08T15:00:00",
+                            "needs_duration": True,
+                        },
+                    }
+                ],
+            }
+        )
+
+        applied = PreferenceEngine(MemoryManager(Path(tempfile.gettempdir()) / "jarvis-default-duration-memory.json")).apply(
+            result,
+            "明天下午3点组会",
+        )
+        applied = validate_agent_result(applied)
+
+        candidate = applied["candidates"][0]
+        self.assertEqual(candidate["status"], "ready")
+        self.assertEqual(candidate["calendar"]["end_time"], "2026-06-08T16:00:00")
+        self.assertNotIn("duration", candidate["missing_fields"])
 
     def test_preference_engine_keeps_reminder_due_time_when_explicit_alert_is_chinese(self):
         result = validate_agent_result(
@@ -816,6 +849,65 @@ class AssistantChatIntentTests(unittest.TestCase):
         self.assertFalse(is_memory_update_request("我在哪里"))
         self.assertFalse(is_memory_update_request("你知道我的名字吗"))
 
+    def test_note_creation_request_detection_stays_out_of_memory(self):
+        text = "帮我记录一下，我有个想法：用截图自动生成日程"
+
+        self.assertTrue(is_note_creation_request(text))
+        self.assertFalse(is_memory_update_request(text))
+        self.assertFalse(is_schedule_creation_request(text))
+        self.assertFalse(is_local_operation_request(text))
+
+    def test_phone_number_write_is_not_schedule_creation(self):
+        text = "写入电话号码:18154100916"
+
+        self.assertFalse(is_schedule_request(text))
+        self.assertFalse(is_schedule_creation_request(text))
+        self.assertFalse(is_local_operation_request(text))
+
+    def test_explicit_note_target_wins_over_time_words(self):
+        text = "写入备忘录：明天开会时讨论截图识别方案"
+
+        self.assertTrue(is_note_creation_request(text))
+        self.assertFalse(is_memory_update_request(text))
+        self.assertIsNotNone(heuristic_note_action_plan(text))
+
+    def test_contextual_note_creation_reuses_previous_user_message(self):
+        history = [
+            {"role": "user", "content": "写入电话号码:18154100916"},
+            {"role": "assistant", "content": "这看起来不像日程或待办。"},
+        ]
+
+        text = contextual_note_creation_text("写入备忘录", history)
+
+        self.assertIsNotNone(text)
+        self.assertIn("18154100916", text)
+        self.assertIn("用户确认：写入备忘录", text)
+
+    def test_heuristic_note_plan_extracts_contextual_phone_number(self):
+        text = "用户要写入备忘录的内容：写入电话号码:18154100916\n用户确认：写入备忘录"
+
+        plan = heuristic_note_action_plan(text)
+
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.action, "create_note")
+        self.assertEqual(plan.note.title, "电话号码")
+        self.assertIn("18154100916", plan.note.content)
+
+    def test_inline_record_command_is_direct_note_creation(self):
+        text = "记录：18154100916 kk"
+
+        plan = heuristic_note_action_plan(text)
+
+        self.assertTrue(is_note_creation_request(text))
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.action, "create_note")
+        self.assertFalse(plan.confirmation_required)
+        self.assertEqual(plan.note.content, "18154100916 kk")
+
+    def test_memory_profile_request_does_not_become_note(self):
+        self.assertTrue(is_memory_update_request("记住我住在上海"))
+        self.assertFalse(is_note_creation_request("记住我住在上海"))
+
     def test_profile_update_parser_extracts_city_statement(self):
         self.assertEqual(parse_profile_update("我在上海"), {"field": "city", "value": "上海"})
         self.assertEqual(parse_profile_update("我住在北京"), {"field": "city", "value": "北京"})
@@ -919,6 +1011,181 @@ class AssistantChatIntentTests(unittest.TestCase):
         self.assertEqual(plan.memory_actions[0].arguments["field"], "preferred_name")
         self.assertFalse(plan.confirmation_required)
         self.assertIn("update_memory", provider.kwargs["system_prompt"])
+
+    def test_planner_accepts_note_action_plan(self):
+        class NoteProvider:
+            async def chat(self, **kwargs):
+                self.kwargs = kwargs
+                return json.dumps(
+                    {
+                        "action": "create_note",
+                        "reply": "我会写入备忘录：截图自动生成日程。",
+                        "note": {
+                            "title": "截图自动生成日程",
+                            "content": "想法：通过截图识别信息，并自动生成日程。",
+                        },
+                        "confirmation_required": False,
+                    }
+                )
+
+        provider = NoteProvider()
+        plan = asyncio.run(
+            plan_assistant_action(
+                provider,
+                "帮我记录一下，我有个想法：用截图自动生成日程",
+                [],
+                datetime(2026, 6, 8, 10, 0, 0),
+            )
+        )
+
+        self.assertEqual(plan.action, "create_note")
+        self.assertEqual(plan.note.title, "截图自动生成日程")
+        self.assertIn("自动生成日程", plan.note.content)
+        self.assertFalse(plan.confirmation_required)
+        self.assertIn("create_note", provider.kwargs["system_prompt"])
+
+    def test_planner_falls_back_to_note_plan_for_explicit_note_content(self):
+        class ChatProvider:
+            async def chat(self, **kwargs):
+                return json.dumps({"action": "chat", "reply": "好的。"})
+
+        plan = asyncio.run(
+            plan_assistant_action(
+                ChatProvider(),
+                "写入备忘录：电话 18154100916",
+                [],
+                datetime(2026, 6, 8, 10, 0, 0),
+            )
+        )
+
+        self.assertEqual(plan.action, "create_note")
+        self.assertEqual(plan.note.title, "电话号码")
+        self.assertIn("18154100916", plan.note.content)
+
+    def test_assistant_chat_routes_note_creation_to_swift_execution(self):
+        class NoteProvider:
+            async def chat(self, **kwargs):
+                return json.dumps(
+                    {
+                        "action": "create_note",
+                        "reply": "我会写入备忘录：截图自动生成日程。",
+                        "note": {
+                            "title": "截图自动生成日程",
+                            "content": "想法：通过截图识别信息，并自动生成日程。",
+                        },
+                        "confirmation_required": False,
+                    }
+                )
+
+        previous_agent = getattr(app.state, "agent", None)
+        previous_provider = getattr(app.state, "active_provider", None)
+        previous_provider_id = getattr(app.state, "active_provider_id", None)
+        previous_model_id = getattr(app.state, "active_model_id", None)
+        previous_sessions = getattr(app.state, "assistant_sessions", None)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                app.state.agent = SimpleNamespace(memory_manager=MemoryManager(Path(tmp) / "memory.json"))
+                app.state.active_provider = NoteProvider()
+                app.state.active_provider_id = "test"
+                app.state.active_model_id = "test"
+                app.state.assistant_sessions = {}
+
+                response = asyncio.run(
+                    assistant_chat(
+                        AssistantChatRequest(
+                            message="帮我记录一下，我有个想法：用截图自动生成日程",
+                            session_id="assistant-note-create-test",
+                        )
+                    )
+                )
+        finally:
+            app.state.agent = previous_agent
+            app.state.active_provider = previous_provider
+            app.state.active_provider_id = previous_provider_id
+            app.state.active_model_id = previous_model_id
+            app.state.assistant_sessions = previous_sessions
+
+        self.assertEqual(response.action, "execute_note")
+        self.assertEqual(response.action_plan.action, "create_note")
+        self.assertEqual(response.action_plan.note.title, "截图自动生成日程")
+
+    def test_assistant_chat_routes_contextual_note_creation_to_swift_execution(self):
+        class ContextualNoteProvider:
+            async def chat(self, **kwargs):
+                self.kwargs = kwargs
+                return json.dumps({"action": "chat", "reply": "好的。"})
+
+        provider = ContextualNoteProvider()
+        previous_agent = getattr(app.state, "agent", None)
+        previous_provider = getattr(app.state, "active_provider", None)
+        previous_provider_id = getattr(app.state, "active_provider_id", None)
+        previous_model_id = getattr(app.state, "active_model_id", None)
+        previous_sessions = getattr(app.state, "assistant_sessions", None)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                app.state.agent = SimpleNamespace(memory_manager=MemoryManager(Path(tmp) / "memory.json"))
+                app.state.active_provider = provider
+                app.state.active_provider_id = "test"
+                app.state.active_model_id = "test"
+                app.state.assistant_sessions = {
+                    "assistant-contextual-note-test": [
+                        {"role": "user", "content": "写入电话号码:18154100916"},
+                        {"role": "assistant", "content": "这看起来不像日程或待办。"},
+                    ]
+                }
+
+                response = asyncio.run(
+                    assistant_chat(
+                        AssistantChatRequest(
+                            message="写入备忘录",
+                            session_id="assistant-contextual-note-test",
+                        )
+                    )
+                )
+        finally:
+            app.state.agent = previous_agent
+            app.state.active_provider = previous_provider
+            app.state.active_provider_id = previous_provider_id
+            app.state.active_model_id = previous_model_id
+            app.state.assistant_sessions = previous_sessions
+
+        self.assertEqual(response.action, "execute_note")
+        self.assertEqual(response.action_plan.action, "create_note")
+        self.assertEqual(response.action_plan.note.title, "电话号码")
+        self.assertIn("18154100916", response.action_plan.note.content)
+
+    def test_assistant_chat_routes_inline_record_to_note_without_provider(self):
+        previous_agent = getattr(app.state, "agent", None)
+        previous_provider = getattr(app.state, "active_provider", None)
+        previous_provider_id = getattr(app.state, "active_provider_id", None)
+        previous_model_id = getattr(app.state, "active_model_id", None)
+        previous_sessions = getattr(app.state, "assistant_sessions", None)
+        try:
+            app.state.agent = None
+            app.state.active_provider = None
+            app.state.active_provider_id = None
+            app.state.active_model_id = None
+            app.state.assistant_sessions = {}
+
+            response = asyncio.run(
+                assistant_chat(
+                    AssistantChatRequest(
+                        message="记录：18154100916 kk",
+                        session_id="assistant-inline-record-note-test",
+                    )
+                )
+            )
+        finally:
+            app.state.agent = previous_agent
+            app.state.active_provider = previous_provider
+            app.state.active_provider_id = previous_provider_id
+            app.state.active_model_id = previous_model_id
+            app.state.assistant_sessions = previous_sessions
+
+        self.assertEqual(response.action, "execute_note")
+        self.assertEqual(response.action_plan.action, "create_note")
+        self.assertEqual(response.action_plan.note.content, "18154100916 kk")
+        self.assertFalse(response.action_plan.confirmation_required)
 
     def test_soul_memory_action_requires_confirmation(self):
         class SoulProvider:
@@ -1471,6 +1738,17 @@ class PromptTests(unittest.TestCase):
 
         self.assertIn("输入模式：用户直接文本", prompt)
 
+    def test_prompt_and_default_soul_allow_automatic_assistant_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = MemoryManager(Path(tmp) / "memory.json")
+            prompt = build_system_prompt(manager, "user_text")
+            soul = (Path(tmp) / "soul.md").read_text(encoding="utf-8")
+
+        self.assertIn("完整单项候选会由系统自动写入", prompt)
+        self.assertIn("自动执行，不额外确认", soul)
+        self.assertNotIn("所有写入 Calendar / Reminders 的操作必须由用户确认", prompt)
+        self.assertNotIn("所有写入 Calendar / Reminders 的操作必须由用户确认", soul)
+
     def test_prompt_current_time_includes_local_timezone_offset(self):
         prompt = build_system_prompt(MemoryManager(Path(tempfile.gettempdir()) / "missing-memory.json"), "user_text")
 
@@ -1816,6 +2094,59 @@ class AgentRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("用户偏好", provider.last_call["system_prompt"])
         self.assertEqual(len(provider.last_call["tools"]), 2)
         self.assertEqual(len(provider.last_call["tools_openai"]), 2)
+
+    async def test_relative_date_correction_fixes_stale_model_calendar_date(self):
+        provider = MockProvider(
+            {
+                "type": "batch",
+                "candidates": [
+                    {
+                        "id": "candidate_1",
+                        "kind": "calendar",
+                        "calendar": {
+                            "title": "学术分享活动",
+                            "start_time": "2025-04-05T15:00:00",
+                            "end_time": "2025-04-05T16:00:00",
+                            "location": "江湾二又",
+                        },
+                    }
+                ],
+            }
+        )
+
+        with patch("agent.date_correction.datetime") as mocked_datetime:
+            mocked_datetime.now.return_value = datetime(2026, 6, 8, 12, 0, 0).astimezone()
+            result = await JarvisAgent().run("后天下午3点钟在江湾二又有一个学术分享活动", provider=provider)
+
+        calendar = result["candidates"][0]["calendar"]
+        self.assertEqual(calendar["start_time"], "2026-06-10T15:00:00")
+        self.assertEqual(calendar["end_time"], "2026-06-10T16:00:00")
+
+    def test_relative_date_correction_preserves_cross_midnight_duration(self):
+        result = {
+            "type": "batch",
+            "candidates": [
+                {
+                    "id": "candidate_1",
+                    "kind": "calendar",
+                    "calendar": {
+                        "title": "夜间维护",
+                        "start_time": "2025-04-05T23:00:00",
+                        "end_time": "2025-04-06T01:00:00",
+                    },
+                }
+            ],
+        }
+
+        corrected = apply_relative_date_corrections(
+            result,
+            "后天晚上11点到次日凌晨1点夜间维护",
+            now=datetime(2026, 6, 8, 12, 0, 0),
+        )
+
+        calendar = corrected["candidates"][0]["calendar"]
+        self.assertEqual(calendar["start_time"], "2026-06-10T23:00:00")
+        self.assertEqual(calendar["end_time"], "2026-06-11T01:00:00")
 
     async def test_followup_uses_pending_session_context(self):
         provider = SequenceProvider(

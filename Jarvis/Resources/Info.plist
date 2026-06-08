@@ -30,6 +30,8 @@
 	<string>Jarvis 使用位置来搜索附近地点。</string>
 	<key>NSRemindersUsageDescription</key>
 	<string>Jarvis 需要访问提醒事项来添加识别到的任务。</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Jarvis 需要使用 AppleScript 将内容写入苹果备忘录。</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>Jarvis 需要截图权限来识别屏幕内容。</string>
 	<key>NSUserNotificationsUsageDescription</key>

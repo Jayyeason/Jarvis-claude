@@ -28,16 +28,20 @@ from providers.local_model_registry import (
 from agent import JarvisAgent
 from agent.assistant_chat import (
     assistant_system_prompt,
+    contextual_note_creation_text,
     contextual_schedule_creation_text,
     cron_command_payload,
     cron_delete_id,
     heuristic_action_plan,
+    heuristic_note_action_plan,
     is_cron_create_request,
     is_cron_delete_request,
     is_cron_help_request,
     is_cron_list_request,
     is_contextual_local_operation_request,
+    is_inline_note_command,
     is_memory_update_request,
+    is_note_creation_request,
     is_schedule_creation_request,
     is_local_operation_request,
     is_slash_list_request,
@@ -642,6 +646,20 @@ async def assistant_chat(req: AssistantChatRequest):
             reply=reply,
         )
 
+    contextual_note_text = contextual_note_creation_text(message, history)
+    direct_note_plan = heuristic_note_action_plan(contextual_note_text or message)
+    if direct_note_plan and (contextual_note_text or is_inline_note_command(message) or app.state.active_provider is None):
+        reply = direct_note_plan.reply or "我会写入备忘录。"
+        _append_assistant_message(session_id, "user", message)
+        _append_assistant_message(session_id, "assistant", reply)
+        logger.info("POST /assistant/chat direct note action=execute_note elapsed=%.2fs", time.monotonic() - started)
+        return AssistantChatResponse(
+            session_id=session_id,
+            action="execute_note",
+            reply=reply,
+            action_plan=direct_note_plan,
+        )
+
     if app.state.active_provider is None:
         return AssistantChatResponse(
             session_id=session_id,
@@ -651,7 +669,9 @@ async def assistant_chat(req: AssistantChatRequest):
         )
 
     contextual_creation_text = contextual_schedule_creation_text(message, history)
-    if is_schedule_creation_request(message) or contextual_creation_text:
+    if not (is_note_creation_request(message) or contextual_note_text) and (
+        is_schedule_creation_request(message) or contextual_creation_text
+    ):
         try:
             return await _assistant_schedule_extraction_response(
                 session_id=session_id,
@@ -672,12 +692,15 @@ async def assistant_chat(req: AssistantChatRequest):
         is_local_operation_request(message)
         or is_contextual_local_operation_request(message, history)
         or is_memory_update_request(message)
+        or is_note_creation_request(message)
+        or contextual_note_text
         or parse_preference_update(message) is not None
     ):
         try:
+            planner_message = contextual_note_text or message
             plan = await plan_assistant_action(
                 app.state.active_provider,
-                message,
+                planner_message,
                 history,
                 datetime.now().astimezone(),
                 app.state.agent.memory_manager.render_prompt_context(),
@@ -712,6 +735,9 @@ async def assistant_chat(req: AssistantChatRequest):
                         reply="识别日程/待办失败，请稍后重试。",
                         error=str(e),
                     )
+            elif plan.action == "create_note":
+                action = "execute_note"
+                reply = plan.reply or "我会写入备忘录。"
             elif plan.action == "update_preference" and plan.preference_values:
                 status = app.state.agent.memory_manager.update_preferences(plan.preference_values, source="manual")
                 updated = {

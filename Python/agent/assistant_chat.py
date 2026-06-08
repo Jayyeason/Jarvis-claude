@@ -5,7 +5,7 @@ import re
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
-from contracts import AssistantActionPlan, AssistantMemoryAction
+from contracts import AssistantActionPlan, AssistantMemoryAction, AssistantNotePayload
 
 
 SCHEDULE_ACTION_HINTS = [
@@ -117,6 +117,41 @@ MEMORY_ACTION_HINTS = [
     "记住",
     "记一下",
     "你要记得",
+    "以后",
+    "称呼我",
+    "叫我",
+    "喊我",
+    "我的名字",
+    "我叫",
+    "我住在",
+    "我的城市",
+    "我偏好",
+    "我喜欢",
+    "我希望你",
+    "以后回答",
+]
+
+NOTE_ACTION_HINTS = [
+    "写到备忘录",
+    "写入备忘录",
+    "存到备忘录",
+    "记到备忘录",
+    "备忘录里",
+    "备忘一下",
+    "帮我记录",
+    "记录一下",
+    "帮我记一下",
+    "保存一下",
+    "存一下",
+    "我有个想法",
+    "有个想法",
+    "一个想法",
+    "我有个灵感",
+    "有个灵感",
+]
+
+NOTE_MEMORY_OVERRIDE_HINTS = [
+    "记住",
     "以后",
     "称呼我",
     "叫我",
@@ -276,7 +311,7 @@ def is_schedule_request(message: str) -> bool:
     text = _normalize_text(message).lower()
     if not text or parse_preference_update(text):
         return False
-    return _contains_any(text, SCHEDULE_ACTION_HINTS) and _contains_any(text, TIME_HINTS)
+    return _contains_any(text, SCHEDULE_ACTION_HINTS) and _has_temporal_hint(text)
 
 
 def is_schedule_creation_request(message: str) -> bool:
@@ -296,6 +331,21 @@ def contextual_schedule_creation_text(message: str, history: list[dict]) -> Opti
     if not _looks_like_creation_confirmation_context(context):
         return None
     return f"{context}\n用户确认：{text}"
+
+
+def contextual_note_creation_text(message: str, history: list[dict]) -> Optional[str]:
+    text = _normalize_text(message)
+    if not _looks_like_note_target_only_request(text):
+        return None
+
+    previous_user = _last_history_content(history, "user")
+    if not previous_user:
+        return None
+    previous_user = _normalize_text(previous_user)
+    if not previous_user or _looks_like_note_target_only_request(previous_user):
+        return None
+
+    return f"用户要写入备忘录的内容：{previous_user}\n用户确认：{text}"
 
 
 def _looks_like_new_schedule_creation(text: str) -> bool:
@@ -326,6 +376,51 @@ def _looks_like_new_schedule_creation(text: str) -> bool:
         return True
 
     return duration_or_alert and (calendar_event or reminder_task)
+
+
+def _has_temporal_hint(text: str) -> bool:
+    if _extract_time_of_day(text) is not None:
+        return True
+    if _contains_any(
+        text,
+        [
+            "今天",
+            "明天",
+            "后天",
+            "今晚",
+            "明晚",
+            "未来",
+            "过去",
+            "最近",
+            "接下来",
+            "本周",
+            "这周",
+            "下周",
+            "周一",
+            "周二",
+            "周三",
+            "周四",
+            "周五",
+            "周六",
+            "周日",
+            "周天",
+            "星期",
+            "礼拜",
+            "凌晨",
+            "早上",
+            "上午",
+            "中午",
+            "下午",
+            "晚上",
+            "夜里",
+        ],
+    ):
+        return True
+    if re.search(r"\d{1,2}\s*月\s*\d{1,2}\s*[日号]?", text):
+        return True
+    if re.search(r"(?<!\d)\d{1,2}\s*[日号](?!码)", text):
+        return True
+    return False
 
 
 def _looks_like_schedule_query(text: str) -> bool:
@@ -414,6 +509,8 @@ def is_memory_update_request(message: str) -> bool:
     text = _normalize_text(message).lower()
     if not text or parse_preference_update(text):
         return False
+    if is_note_creation_request(message):
+        return False
     if _looks_like_new_schedule_creation(text) or is_local_operation_request(text):
         return False
     if _looks_like_memory_recall_question(text):
@@ -423,6 +520,132 @@ def is_memory_update_request(message: str) -> bool:
     if _looks_like_user_profile_statement(text):
         return True
     return _contains_any(text, MEMORY_ACTION_HINTS)
+
+
+def is_note_creation_request(message: str) -> bool:
+    text = _normalize_text(message).lower()
+    if not text or parse_preference_update(text):
+        return False
+
+    if is_inline_note_command(text):
+        return True
+
+    explicit_notes_app = _contains_any(text, ["备忘录", "notes", "note"]) and _contains_any(
+        text,
+        ["写", "记录", "记一下", "保存", "存", "加到", "放到"],
+    )
+    if explicit_notes_app:
+        return True
+
+    if _looks_like_new_schedule_creation(text) or is_local_operation_request(text):
+        return False
+    if _looks_like_memory_recall_question(text):
+        return False
+
+    if not _contains_any(text, NOTE_ACTION_HINTS):
+        return False
+
+    # Keep durable user-profile and behavior preferences in Memory unless the user
+    # explicitly names Notes/备忘录 as the target.
+    if parse_profile_update(message) or _contains_any(text, NOTE_MEMORY_OVERRIDE_HINTS):
+        return False
+
+    return True
+
+
+def is_inline_note_command(message: str) -> bool:
+    text = _normalize_text(message).lower()
+    patterns = [
+        r"^(?:请|帮我)?(?:记录|记一下|记下|保存|存一下|存下|备忘|备忘一下)[：:].{1,}",
+        r"^(?:请|帮我)?(?:记录|记一下|记下|保存|存一下|存下|备忘|备忘一下)\s+.{1,}",
+    ]
+    return any(re.match(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+
+def heuristic_note_action_plan(message: str) -> Optional[AssistantActionPlan]:
+    if not is_note_creation_request(message):
+        return None
+
+    content = _extract_note_content(message)
+    if not content:
+        return None
+
+    title = _note_title(content)
+    return AssistantActionPlan(
+        action="create_note",
+        reply=f"我会写入备忘录：{title}。",
+        note=AssistantNotePayload(title=title, content=content),
+        confirmation_required=False,
+    )
+
+
+def _looks_like_note_target_only_request(message: str) -> bool:
+    text = _normalize_text(message).lower().strip("。.!！ ")
+    if not text or len(text) > 30:
+        return False
+    patterns = [
+        r"^(?:写入|写到|存到|保存到|记到|记录到|加到|放到)(?:macos\s*)?(?:备忘录|notes?|note)(?:里|中)?$",
+        r"^(?:把)?(?:它|这个|这条|上一条|上面这条|刚才这条|刚刚这条)?(?:写入|写到|存到|保存到|记到|记录到|加到|放到)(?:macos\s*)?(?:备忘录|notes?|note)(?:里|中)?$",
+    ]
+    return any(re.fullmatch(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+
+def _extract_note_content(message: str) -> Optional[str]:
+    raw = (message or "").strip()
+    if not raw:
+        return None
+
+    contextual = re.search(
+        r"用户要写入备忘录的内容[:：]\s*(?P<content>.+?)(?:\n用户确认[:：].*)?$",
+        raw,
+        flags=re.DOTALL,
+    )
+    if contextual:
+        return _clean_note_content(contextual.group("content"))
+
+    text = _normalize_text(raw)
+    if _looks_like_note_target_only_request(text):
+        return None
+
+    patterns = [
+        r"^(?:请|帮我)?(?:把)?(?P<content>.+?)(?:写入|写到|存到|保存到|记到|记录到|加到|放到)(?:macos\s*)?(?:备忘录|notes?|note)(?:里|中)?[。.!！]?$",
+        r"^(?:请|帮我)?(?:写入|写到|存到|保存到|记到|记录到|加到|放到)(?:macos\s*)?(?:备忘录|notes?|note)(?:里|中)?[：:，,\s]+(?P<content>.+)$",
+        r"^(?:请|帮我)?(?:记录一下|记录|记一下|记下|保存一下|保存|存一下|存下|备忘一下|备忘)[：:，,\s]*(?P<content>.+)$",
+        r"^(?:我)?有个(?:想法|灵感)[：:，,\s]*(?P<content>.+)$",
+        r"^(?:请|帮我)?记录(?:一下)?(?:，|,|\s)*(?:我有个(?:想法|灵感)[：:，,\s]*)?(?P<content>.+)$",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        content = _clean_note_content(match.group("content"))
+        if content:
+            return content
+    return None
+
+
+def _clean_note_content(value: str) -> Optional[str]:
+    text = _normalize_text(value)
+    text = text.strip(" ，,。.!！；;：:\"'「」")
+    text = re.sub(r"^(?:请|帮我)?(?:把)?(?:记录一下|记录|记一下|保存一下|保存|存一下|存下|备忘一下|备忘|写入|写下|记下)\s*", "", text)
+    text = text.strip(" ，,。.!！；;：:\"'「」")
+    if not text or _looks_like_note_target_only_request(text):
+        return None
+    return text
+
+
+def _note_title(content: str) -> str:
+    text = _normalize_text(content).strip()
+    if re.search(r"(?:电话|手机号|号码|联系方式).*\d{5,}", text):
+        return "电话号码"
+
+    first_line = re.split(r"[。.!！\n]", text, maxsplit=1)[0].strip()
+    prefix = re.split(r"[：:，,；;]", first_line, maxsplit=1)[0].strip()
+    if 2 <= len(prefix) <= 18 and len(prefix) < len(first_line):
+        return prefix
+
+    compact = re.sub(r"\s+", "", first_line)
+    return (compact[:18] or "Jarvis 备忘")
 
 
 def _looks_like_memory_recall_question(text: str) -> bool:
@@ -505,8 +728,8 @@ def assistant_system_prompt(memory_context: str) -> str:
     return (
         "你是 Jarvis 的对话助手。用简洁中文回答。\n"
         "你可以闲聊、解释信息、帮助用户组织想法。\n"
-        "不要声称自己已经写入日程、待办或偏好；这些操作由系统工具处理。\n"
-        "如果用户想创建日程/待办或修改偏好，请简短说明可以继续告诉你具体信息。\n\n"
+        "不要声称自己已经写入日程、待办、备忘录或偏好；这些操作由系统工具处理。\n"
+        "如果用户想创建日程/待办、写入备忘录或修改偏好，请简短说明可以继续告诉你具体信息。\n\n"
         f"{memory_context}"
     )
 
@@ -558,6 +781,7 @@ def assistant_action_planner_prompt(now: datetime, memory_context: str = "") -> 
         "可选 action：\n"
         "- chat：闲聊或不需要本地操作。\n"
         "- create_candidates：用户要新建日程或待办。\n"
+        "- create_note：用户明确要保存想法、灵感、临时记录或写入 macOS 备忘录，且内容无时间属性。\n"
         "- update_preference：用户明确设置日程/待办偏好。\n"
         "- update_memory：用户明确要求记住长期资料、称呼、城市、交流偏好，或提出 Jarvis 人设/边界修改。\n"
         "- list_items：列出已有日程/待办。\n"
@@ -567,7 +791,7 @@ def assistant_action_planner_prompt(now: datetime, memory_context: str = "") -> 
         "- clarify：信息不足，无法确定目标、日期、操作或新时间。\n\n"
         "JSON 结构：\n"
         "{\n"
-        '  "action": "list_items|delete_items|reschedule_item|update_alert|clarify|chat|create_candidates|update_preference|update_memory",\n'
+        '  "action": "list_items|delete_items|reschedule_item|update_alert|clarify|chat|create_candidates|create_note|update_preference|update_memory",\n'
         '  "reply": "给用户的简短回复",\n'
         '  "clarification_question": "仅 action=clarify 时填写",\n'
         '  "target": {\n'
@@ -588,6 +812,7 @@ def assistant_action_planner_prompt(now: datetime, memory_context: str = "") -> 
         '    "title": "新标题",\n'
         '    "location": "新地点"\n'
         "  },\n"
+        '  "note": {"title": "简洁备忘录标题", "content": "整理后的备忘录正文"},\n'
         '  "preference_values": {"calendar_default_alert_minutes": "15"},\n'
         '  "memory_actions": [\n'
         '    {"tool": "set_user_profile", "arguments": {"field": "preferred_name", "value": "khalil"}, "confidence": 0.95, "requires_confirmation": false}\n'
@@ -602,6 +827,12 @@ def assistant_action_planner_prompt(now: datetime, memory_context: str = "") -> 
         "- 如果上一轮你追问了过去还是未来，用户回答“未来2天”或“过去2天”，要结合上一轮目标继续返回 list_items，不要返回 chat。\n"
         "- “明天下午3点开会，持续1小时，提前30min提醒我” => action=create_candidates；这是新建日程并设置提醒，不是 update_alert。\n"
         "- “今天下午2点提醒我喝水”/“今天下午2点给老师发消息” => action=create_candidates；这是新建待办，不是 list_items。\n"
+        "- 对话中新建日程/待办不要要求用户确认；信息完整时由 Swift 自动写入，缺少关键字段时只追问缺失字段。\n"
+        "- “帮我记录一下，我有个想法：用截图自动生成日程” => action=create_note，note.title 简洁概括，note.content 保留原意并适度整理润色，confirmation_required=false。\n"
+        "- “写到备忘录：读完这本书后整理产品想法” => action=create_note，不要返回 update_memory。\n"
+        "- 如果当前消息是“写入备忘录/记到备忘录/保存到备忘录”，并且上下文里有“用户要写入备忘录的内容”，要把该内容写成 create_note，不要追问。\n"
+        "- create_note 只用于对话中的显式记录/保存意图；不要把截图内容、日程、待办或长期个人偏好写成备忘录。\n"
+        "- create_note 的 content 可以整理结构和标点，但不得添加用户没有表达的新事实。\n"
         "- “删除明天的开会日程” => action=delete_items，item_kind=calendar，关键词可为 [\"开会\"]。\n"
         "- “把明天下午开会日程推迟1小时开始” => action=reschedule_item，patch.shift_minutes=60。\n"
         "- “今天晚上22点的会议提前1小时” => action=reschedule_item，关键词 [\"会议\"]，time_of_day=22:00，patch.shift_minutes=-60；这是修改开始时间，不是提醒。\n"
@@ -614,6 +845,7 @@ def assistant_action_planner_prompt(now: datetime, memory_context: str = "") -> 
         "- 日程 calendar 是占用一段时间的会议、吃饭、面试、课程、活动、出差、看展。\n"
         "- 待办 reminder 是交作业、缴费、提交材料、报名截止、DDL、买东西、发消息、回复邮件、联系某人、记得做某事。\n"
         "- 只有用户明确要求长期记住时才用 update_memory；普通闲聊、情绪、临时状态不要写 Memory。\n"
+        "- Notes 与 Memory 的边界：保存某个想法/文本/临时记录 => create_note；改变 Jarvis 长期行为或记住用户资料/偏好 => update_memory。\n"
         "- “以后称呼我为 khalil” => action=update_memory，tool=set_user_profile，field=preferred_name，value=khalil。\n"
         "- “记住我住在上海”/“我的城市是上海”/“我在上海” => tool=set_user_profile，field=city，value=上海。\n"
         "- “我偏好简洁回答”/“以后回答简洁一点” => tool=append_user_memory，category=style，content=偏好简洁回答。\n"
@@ -695,10 +927,29 @@ def normalize_action_plan(plan: AssistantActionPlan, message: str, now: datetime
         ]
         label = "城市" if parsed_profile["field"] == "city" else "称呼偏好"
         plan.reply = f"已更新 Memory：{label}：{parsed_profile['value']}。"
+    fallback_note = heuristic_note_action_plan(message)
+    if fallback_note and plan.action in {"chat", "clarify", "create_candidates", "update_memory"}:
+        return fallback_note
     if plan.action in {"delete_items", "reschedule_item"}:
         plan.confirmation_required = True
     if plan.action == "update_alert":
         plan.confirmation_required = False
+    if plan.action == "create_note":
+        note = plan.note
+        title = (note.title if note else "").strip()
+        content = (note.content if note else "").strip()
+        if not title or not content:
+            if fallback_note:
+                return fallback_note
+            return AssistantActionPlan(
+                action="clarify",
+                reply="你想写入备忘录的标题和内容是什么？",
+                clarification_question="你想写入备忘录的标题和内容是什么？",
+            )
+        plan.note = AssistantNotePayload(title=title, content=content)
+        plan.confirmation_required = False
+        if not plan.reply:
+            plan.reply = f"我会写入备忘录：{title}。"
     if plan.action == "update_preference":
         if not plan.preference_values:
             plan.preference_values = parsed_preferences

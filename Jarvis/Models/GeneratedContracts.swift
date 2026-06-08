@@ -489,12 +489,18 @@ struct AssistantMemoryAction: Codable {
     }
 }
 
+struct AssistantNotePayload: Codable {
+    var title: String
+    var content: String
+}
+
 struct AssistantActionPlan: Codable {
     var action: String
     var reply: String?
     var clarificationQuestion: String?
     var target: AssistantActionTarget?
     var patch: AssistantOperationPatch?
+    var note: AssistantNotePayload?
     var preferenceValues: [String: String]?
     var memoryActions: [AssistantMemoryAction]?
     var confirmationRequired: Bool?
@@ -505,6 +511,7 @@ struct AssistantActionPlan: Codable {
         case clarificationQuestion = "clarification_question"
         case target
         case patch
+        case note
         case preferenceValues = "preference_values"
         case memoryActions = "memory_actions"
         case confirmationRequired = "confirmation_required"

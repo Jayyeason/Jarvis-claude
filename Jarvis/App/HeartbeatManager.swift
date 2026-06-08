@@ -45,7 +45,12 @@ class HeartbeatManager {
     }
 
     private func snapshot() async throws -> HeartbeatTickRequest {
-        try await requestAccess()
+        guard hasReadAccess(to: .event), hasReadAccess(to: .reminder) else {
+            throw HeartbeatError.accessNotGranted(
+                eventStatus: EventKitTool.authorizationDescription(for: .event),
+                reminderStatus: EventKitTool.authorizationDescription(for: .reminder)
+            )
+        }
         let now = Date()
         return HeartbeatTickRequest(
             now: iso(now),
@@ -56,24 +61,8 @@ class HeartbeatManager {
         )
     }
 
-    private func requestAccess() async throws {
-        if #available(macOS 14.0, *) {
-            try await store.requestFullAccessToEvents()
-            try await store.requestFullAccessToReminders()
-        } else {
-            _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-                store.requestAccess(to: .event) { granted, error in
-                    if let error { continuation.resume(throwing: error); return }
-                    continuation.resume(returning: granted)
-                }
-            }
-            _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-                store.requestAccess(to: .reminder) { granted, error in
-                    if let error { continuation.resume(throwing: error); return }
-                    continuation.resume(returning: granted)
-                }
-            }
-        }
+    private func hasReadAccess(to entityType: EKEntityType) -> Bool {
+        EventKitTool.hasFullAccess(to: entityType)
     }
 
     private func fetchEvents(dayOffset: Int) -> [CalendarEventSnapshot] {
@@ -157,5 +146,16 @@ class HeartbeatManager {
             return minutes
         }
         return values.min()
+    }
+}
+
+private enum HeartbeatError: Error, LocalizedError {
+    case accessNotGranted(eventStatus: String, reminderStatus: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .accessNotGranted(let eventStatus, let reminderStatus):
+            return "日历或提醒事项尚未授权，跳过主动提醒快照 event=\(eventStatus) reminder=\(reminderStatus)"
+        }
     }
 }

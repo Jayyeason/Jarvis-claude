@@ -7,6 +7,7 @@ from uuid import uuid4
 from providers.base import BaseProvider
 
 from .memory import MemoryManager
+from .date_correction import apply_relative_date_corrections
 from .preferences import PreferenceEngine
 from .prompts import build_system_prompt
 from .tools import get_anthropic_tools, get_openai_tools
@@ -101,6 +102,7 @@ class JarvisAgent:
                 result = validate_agent_result(raw_result)
                 if is_followup and selected_candidate_ids:
                     result = self._merge_followup_result(pending_session, result, selected_candidate_ids)
+                result = apply_relative_date_corrections(result, user_text)
                 result = self.preference_engine.apply(result, user_text)
                 result = validate_agent_result(result)
                 result["session_id"] = session_id

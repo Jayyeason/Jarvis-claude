@@ -72,24 +72,23 @@ class PreferenceEngine:
             return
         explicit_keys = explicit_keys or set()
 
-        if "calendar_default_duration_minutes" in explicit:
-            minutes = self._positive_int(explicit.get("calendar_default_duration_minutes"))
-            start = self._parse_datetime(payload.get("start_time"))
-            end = self._parse_datetime(payload.get("end_time"))
-            missing = set(candidate.get("missing_fields") or [])
-            if minutes and start and not end and ("duration" in missing or payload.get("needs_duration")):
-                end = start + timedelta(minutes=minutes)
-                payload["end_time"] = self._format_datetime(end)
-                payload["needs_duration"] = False
-                self._remove_missing(candidate, "duration")
-                self._record(
-                    candidate,
-                    "calendar.end_time",
-                    self._format_datetime(end),
-                    "时长",
-                    self._source("calendar_default_duration_minutes", explicit_keys),
-                    f"已设置为持续 {minutes} 分钟。",
-                )
+        minutes = self._positive_int(explicit.get("calendar_default_duration_minutes"))
+        start = self._parse_datetime(payload.get("start_time"))
+        end = self._parse_datetime(payload.get("end_time"))
+        missing = set(candidate.get("missing_fields") or [])
+        if minutes and start and not end and ("duration" in missing or payload.get("needs_duration")):
+            end = start + timedelta(minutes=minutes)
+            payload["end_time"] = self._format_datetime(end)
+            payload["needs_duration"] = False
+            self._remove_missing(candidate, "duration")
+            self._record(
+                candidate,
+                "calendar.end_time",
+                self._format_datetime(end),
+                "时长",
+                self._source("calendar_default_duration_minutes", explicit_keys),
+                f"已设置为持续 {minutes} 分钟。",
+            )
 
         if "calendar_default_alert_minutes" in explicit and not self._has_explicit_alert_text(context):
             minutes = self._nonnegative_int(explicit.get("calendar_default_alert_minutes"))

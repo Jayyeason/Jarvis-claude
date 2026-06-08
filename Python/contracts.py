@@ -271,10 +271,16 @@ class AssistantMemoryAction(BaseModel):
     requires_confirmation: bool = False
 
 
+class AssistantNotePayload(BaseModel):
+    title: str
+    content: str
+
+
 class AssistantActionPlan(BaseModel):
     action: Literal[
         "chat",
         "create_candidates",
+        "create_note",
         "update_preference",
         "update_memory",
         "list_items",
@@ -287,6 +293,7 @@ class AssistantActionPlan(BaseModel):
     clarification_question: Optional[str] = None
     target: Optional[AssistantActionTarget] = None
     patch: Optional[AssistantOperationPatch] = None
+    note: Optional[AssistantNotePayload] = None
     preference_values: Optional[dict[str, str]] = None
     memory_actions: list[AssistantMemoryAction] = Field(default_factory=list)
     confirmation_required: bool = True
@@ -308,6 +315,7 @@ class AssistantChatResponse(BaseModel):
     action: Literal[
         "chat",
         "review_candidates",
+        "execute_note",
         "preference_updated",
         "list_items",
         "confirm_operation",
@@ -469,6 +477,7 @@ CONTRACT_MODELS = [
     AssistantActionTarget,
     AssistantOperationPatch,
     AssistantMemoryAction,
+    AssistantNotePayload,
     AssistantActionPlan,
     AgentResponse,
     AssistantChatResponse,
