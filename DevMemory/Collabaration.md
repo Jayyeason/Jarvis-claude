@@ -596,4 +596,9 @@ If any file is missing, create it from the templates below before implementation
 - Files: Jarvis/NativeActions/EventKitTool.swift,Jarvis/UI/AssistantChatPanel.swift,Jarvis/App/HeartbeatManager.swift,Jarvis/project.yml,Makefile
 - Decision: Ad-hoc cdhash-only signing caused TCC to treat rebuilt Debug apps as new identities; use Apple Development team K53J9V75NJ so Calendar/Reminders authorization persists after one reauthorization.
 - Next: User should allow Calendar/Reminders once on the next write attempt; if creation still fails, inspect .logs/app.log EventKit lines.
+### 2026-06-08 12:28:36 +0800 | milestone
+- Summary: Committed and pushed Jarvis assistant write workflow changes to origin/agent-restruct.
+- Files: commit 9095831,DevMemory/Collabaration.md
+- Decision: Loose image*.png files were left untracked as local screenshots/test artifacts.
+- Next: User can test Notes/Calendar/Reminders after one macOS permission grant for the newly stable-signed app.
 
